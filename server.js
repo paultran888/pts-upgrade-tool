@@ -16,12 +16,21 @@ const { screenshotHTML } = require('./lib/screenshoter');
 const app = express();
 const PORT = process.env.PORT || 3090;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
-const JOBS_DIR = path.join(__dirname, 'data', 'jobs');
-const LEADS_DIR = path.join(__dirname, 'data', 'leads');
-const SCREENSHOTS_DIR = path.join(__dirname, 'public', 'screenshots');
+
+/* ── Persistent data paths (set DATA_DIR to a Railway volume mount, e.g. /data) ── */
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const JOBS_DIR = path.join(DATA_DIR, 'jobs');
+const LEADS_DIR = path.join(DATA_DIR, 'leads');
+const SCREENSHOTS_DIR = process.env.DATA_DIR
+  ? path.join(DATA_DIR, 'screenshots')        // Volume: screenshots persist alongside jobs
+  : path.join(__dirname, 'public', 'screenshots'); // Local dev: serve from public/
 
 /* ── Model Config ── */
 const MODEL = 'claude-sonnet-4-6';
+
+/* ── Preview expiry (30 days) ── */
+const PREVIEW_TTL_DAYS = 30;
+const PREVIEW_TTL_MS = PREVIEW_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 // Ensure directories exist
 [JOBS_DIR, LEADS_DIR, SCREENSHOTS_DIR].forEach(dir => {
@@ -69,13 +78,16 @@ app.post('/api/analyze', (req, res) => {
   }
 
   const jobId = uuidv4().split('-')[0]; // Short ID
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + PREVIEW_TTL_MS);
   const job = {
     id: jobId,
     url: parsedUrl.href,
     status: 'queued',
     progress: 0,
     progressMessage: 'Starting analysis...',
-    createdAt: new Date().toISOString(),
+    createdAt: createdAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
     analysis: null,
     generatedHtml: null,
     beforeScreenshot: null,
@@ -116,7 +128,8 @@ app.get('/api/status/:jobId', (req, res) => {
       designScore: job.analysis?.currentAssessment?.designScore
     } : null,
     error: job.error,
-    createdAt: job.createdAt
+    createdAt: job.createdAt,
+    expiresAt: job.expiresAt || null
   });
 });
 
@@ -176,6 +189,20 @@ app.post('/api/lead', (req, res) => {
 /* ============================================
    JOB PROCESSING PIPELINE
    ============================================ */
+/**
+ * Timed sub-updates — fires progress messages at intervals during long AI calls
+ * so the user never stares at a frozen progress bar.
+ */
+function startSubUpdates(jobId, steps, intervalMs = 6000) {
+  let i = 0;
+  const timer = setInterval(() => {
+    if (i >= steps.length) { clearInterval(timer); return; }
+    updateJob(jobId, steps[i]);
+    i++;
+  }, intervalMs);
+  return timer;
+}
+
 async function processJob(jobId) {
   const job = getJob(jobId);
   if (!job) return;
@@ -183,24 +210,61 @@ async function processJob(jobId) {
   console.log(`[PREVIEW] Job ${jobId} — using ${MODEL}`);
 
   try {
-    // Step 1: Scrape
+    // ── Step 1: Scrape ──
     updateJob(jobId, { status: 'processing', progress: 10, progressMessage: 'Scanning your website...', progressDetail: 'Loading your site in a real browser and capturing every element — layout, colors, fonts, images, and content.' });
+
+    const scrapeUpdates = startSubUpdates(jobId, [
+      { progress: 15, progressMessage: 'Reading your page structure...', progressDetail: 'Mapping out your navigation, headers, sections, and footer to understand the full layout.' },
+      { progress: 20, progressMessage: 'Capturing visual design...', progressDetail: 'Analyzing your color palette, typography, spacing, and imagery for the redesign.' },
+      { progress: 25, progressMessage: 'Extracting content and links...', progressDetail: 'Pulling your headlines, body text, calls-to-action, and internal links.' },
+    ], 5000);
+
     const scraped = await scrapeWebsite(job.url, jobId, SCREENSHOTS_DIR);
+    clearInterval(scrapeUpdates);
     updateJob(jobId, { progress: 30, progressMessage: 'Website scanned successfully', progressDetail: 'Got it. Your current site has been fully captured. Moving on to the deep analysis.', beforeScreenshot: true });
 
-    // Step 2: AI analysis
+    // ── Step 2: AI Analysis ──
     updateJob(jobId, { progress: 35, progressMessage: 'Analyzing your design and conversion flow...', progressDetail: 'Our AI is reviewing your layout, copy, calls-to-action, SEO structure, and mobile experience — the same analysis a senior designer would do.' });
+
+    const analysisUpdates = startSubUpdates(jobId, [
+      { progress: 38, progressMessage: 'Evaluating mobile responsiveness...', progressDetail: 'Checking how your site looks and performs on phones and tablets — over 60% of web traffic is mobile.' },
+      { progress: 41, progressMessage: 'Reviewing SEO structure...', progressDetail: 'Analyzing your meta tags, heading hierarchy, structured data, and content organization for search engines.' },
+      { progress: 44, progressMessage: 'Scoring your calls-to-action...', progressDetail: 'Evaluating button placement, form design, and conversion paths — are visitors being guided to take action?' },
+      { progress: 47, progressMessage: 'Assessing visual hierarchy...', progressDetail: 'Looking at how your design directs attention. Good hierarchy means visitors see the right things first.' },
+      { progress: 50, progressMessage: 'Benchmarking against modern standards...', progressDetail: 'Comparing your design patterns to current best practices used by top-performing sites in your industry.' },
+      { progress: 53, progressMessage: 'Finalizing analysis report...', progressDetail: 'Compiling all findings into an upgrade strategy tailored to your specific business and audience.' },
+    ], 8000);
+
     const analysis = await analyzeWebsite(scraped.content, { model: MODEL });
-    updateJob(jobId, { progress: 55, progressMessage: 'Analysis complete. Building upgrade strategy...', progressDetail: 'Found opportunities to improve. Now writing a custom upgrade strategy for your specific business.', analysis });
+    clearInterval(analysisUpdates);
+    updateJob(jobId, { progress: 55, progressMessage: 'Analysis complete — building your upgrade strategy', progressDetail: 'Found opportunities to improve. Now writing a custom upgrade strategy for your specific business.', analysis });
 
-    // Step 3: AI build
+    // ── Step 3: AI Build ──
     updateJob(jobId, { progress: 60, progressMessage: 'Writing custom HTML from scratch...', progressDetail: 'This isn\'t a template — our AI is writing a completely new page tailored to your brand, with modern design patterns and conversion-optimized layout.' });
-    const html = await buildUpgradedSite(analysis, { model: MODEL });
-    updateJob(jobId, { progress: 85, progressMessage: 'Upgrade built. Generating preview...', progressDetail: 'Your upgraded site is ready. Now capturing a screenshot so you can compare side-by-side.', generatedHtml: html });
 
-    // Step 4: Screenshot
+    const buildUpdates = startSubUpdates(jobId, [
+      { progress: 63, progressMessage: 'Crafting your new hero section...', progressDetail: 'Designing the first thing visitors see — a compelling headline, clear value proposition, and strong call-to-action.' },
+      { progress: 66, progressMessage: 'Building navigation and layout...', progressDetail: 'Creating a clean, intuitive navigation structure and responsive page layout that works on every screen size.' },
+      { progress: 69, progressMessage: 'Designing content sections...', progressDetail: 'Laying out your services, features, and key selling points in a modern, scannable format.' },
+      { progress: 72, progressMessage: 'Adding social proof and trust signals...', progressDetail: 'Incorporating testimonials, credentials, and trust elements that help convert visitors into customers.' },
+      { progress: 75, progressMessage: 'Optimizing forms and CTAs...', progressDetail: 'Designing conversion-focused contact forms and call-to-action buttons with proven placement strategies.' },
+      { progress: 78, progressMessage: 'Applying your brand colors and typography...', progressDetail: 'Matching your brand identity while modernizing the visual feel — your site, but elevated.' },
+      { progress: 81, progressMessage: 'Polishing responsive design...', progressDetail: 'Fine-tuning the layout for phones, tablets, and desktops so it looks sharp everywhere.' },
+      { progress: 83, progressMessage: 'Final code review...', progressDetail: 'Cleaning up the code, optimizing performance, and ensuring everything renders perfectly.' },
+    ], 7000);
+
+    const html = await buildUpgradedSite(analysis, { model: MODEL });
+    clearInterval(buildUpdates);
+    updateJob(jobId, { progress: 85, progressMessage: 'Upgrade built! Generating preview...', progressDetail: 'Your upgraded site is ready. Now capturing a screenshot so you can compare side-by-side.', generatedHtml: html });
+
+    // ── Step 4: Screenshot ──
+    updateJob(jobId, { progress: 90, progressMessage: 'Capturing your before & after screenshots...', progressDetail: 'Taking high-resolution screenshots of both versions for the side-by-side comparison.' });
     const afterPath = path.join(SCREENSHOTS_DIR, `${jobId}-after.png`);
     await screenshotHTML(html, afterPath);
+    updateJob(jobId, { progress: 95, progressMessage: 'Almost there — preparing your results...', progressDetail: 'Packaging everything up for the big reveal.' });
+
+    // Brief pause so user sees the 95% message before completion
+    await new Promise(r => setTimeout(r, 1500));
     updateJob(jobId, { status: 'complete', progress: 100, progressMessage: 'Your upgrade is ready!', progressDetail: '', afterScreenshot: true });
 
     console.log(`[PREVIEW] Job ${jobId} complete — ${analysis.businessName || job.url}`);
@@ -222,6 +286,55 @@ function updateJob(jobId, updates) {
   Object.assign(job, updates);
   saveJob(job);
 }
+
+/* ============================================
+   SERVE SCREENSHOTS FROM VOLUME (when DATA_DIR is set)
+   ============================================ */
+if (process.env.DATA_DIR) {
+  app.use('/screenshots', express.static(SCREENSHOTS_DIR));
+}
+
+/* ============================================
+   AUTO-CLEANUP: Remove previews older than 30 days
+   Runs once on startup, then every 24 hours.
+   ============================================ */
+function cleanupExpiredJobs() {
+  try {
+    const now = Date.now();
+    const files = fs.readdirSync(JOBS_DIR).filter(f => f.endsWith('.json'));
+    let cleaned = 0;
+
+    for (const file of files) {
+      const fp = path.join(JOBS_DIR, file);
+      const job = JSON.parse(fs.readFileSync(fp, 'utf8'));
+      const createdAt = new Date(job.createdAt).getTime();
+
+      if (now - createdAt > PREVIEW_TTL_MS) {
+        // Remove job file
+        fs.unlinkSync(fp);
+
+        // Remove associated screenshots
+        const jobId = job.id;
+        const beforePath = path.join(SCREENSHOTS_DIR, `${jobId}-before.png`);
+        const afterPath = path.join(SCREENSHOTS_DIR, `${jobId}-after.png`);
+        if (fs.existsSync(beforePath)) fs.unlinkSync(beforePath);
+        if (fs.existsSync(afterPath)) fs.unlinkSync(afterPath);
+
+        cleaned++;
+      }
+    }
+
+    if (cleaned > 0) {
+      console.log(`[CLEANUP] Removed ${cleaned} expired preview(s) older than ${PREVIEW_TTL_DAYS} days`);
+    }
+  } catch (err) {
+    console.error('[CLEANUP] Error:', err.message);
+  }
+}
+
+// Run cleanup on startup and every 24 hours
+cleanupExpiredJobs();
+setInterval(cleanupExpiredJobs, 24 * 60 * 60 * 1000);
 
 /* ============================================
    404 FALLBACK
