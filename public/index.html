@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Website Upgrade Tool — Paul Tran Studio</title>
+  <meta name="description" content="See your website transformed in seconds. Paste your URL, get a free AI-powered upgrade preview, then talk to Paul about making it real.">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+
+  <!-- Before/After Slider Web Component -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/img-comparison-slider@8/dist/styles.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/img-comparison-slider@8/dist/index.js"></script>
+
+  <!-- App Styles -->
+  <link rel="stylesheet" href="/css/style.css">
+
+  <!-- Favicon -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+</head>
+<body>
+
+  <!-- ═══════════════ NAV ═══════════════ -->
+  <nav class="nav">
+    <div class="container nav__inner">
+      <a href="https://paultranstudio.com" class="nav__logo">
+        <span class="nav__logo-icon">P</span>
+        Paul Tran Studio
+      </a>
+      <a href="https://paultranstudio.com" class="nav__link">← Back to Portfolio</a>
+    </div>
+  </nav>
+
+  <!-- ═══════════════ HERO ═══════════════ -->
+  <section class="hero" id="hero">
+    <div class="container">
+      <div class="hero__badge">AI-Powered Website Upgrades</div>
+      <h1 class="hero__title">See Your Website<br><span class="hero__gradient">Transformed</span> in Seconds</h1>
+      <p class="hero__sub">Paste your URL below. Our AI analyzes your current site, then builds a modern, conversion-optimized upgrade — instantly.</p>
+
+      <form class="hero__form" id="analyzeForm">
+        <div class="hero__input-wrap">
+          <svg class="hero__input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <input type="text" id="urlInput" class="hero__input" placeholder="Enter your website URL (e.g. mybusiness.com)" autocomplete="url" required>
+        </div>
+        <button type="submit" class="btn btn--primary hero__btn" id="analyzeBtn">
+          <span class="btn__text">See Your Upgrade</span>
+          <svg class="btn__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </button>
+      </form>
+
+      <p class="hero__note">100% free — see your upgrade in seconds</p>
+    </div>
+  </section>
+
+  <!-- ═══════════════ PROGRESS ═══════════════ -->
+  <section class="progress-section hidden" id="progressSection">
+    <div class="container">
+      <div class="progress-card">
+        <div class="progress-card__spinner"></div>
+        <h2 class="progress-card__title" id="progressTitle">Starting analysis...</h2>
+        <p class="progress-card__url" id="progressUrl"></p>
+        <div class="progress-bar">
+          <div class="progress-bar__fill" id="progressFill" style="width: 0%"></div>
+        </div>
+        <p class="progress-card__percent" id="progressPercent">0%</p>
+
+        <p class="progress-card__detail" id="progressDetail">Loading your site in a real browser and capturing every element.</p>
+
+        <div class="progress-steps" id="progressSteps">
+          <div class="progress-step" data-step="scan">
+            <div class="progress-step__dot"></div>
+            <span>Scanning website</span>
+          </div>
+          <div class="progress-step" data-step="analyze">
+            <div class="progress-step__dot"></div>
+            <span>Analyzing design</span>
+          </div>
+          <div class="progress-step" data-step="build">
+            <div class="progress-step__dot"></div>
+            <span>Building upgrade</span>
+          </div>
+          <div class="progress-step" data-step="preview">
+            <div class="progress-step__dot"></div>
+            <span>Generating preview</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ ERROR ═══════════════ -->
+  <section class="error-section hidden" id="errorSection">
+    <div class="container">
+      <div class="error-card">
+        <div class="error-card__icon">✕</div>
+        <h2 class="error-card__title">Something went wrong</h2>
+        <p class="error-card__message" id="errorMessage">We couldn't analyze this website. Please try again.</p>
+        <button class="btn btn--primary" id="retryBtn">Try Again</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ RESULTS ═══════════════ -->
+  <section class="results hidden" id="resultsSection">
+    <div class="container">
+      <div class="results__header">
+        <div class="results__badge">Upgrade Ready</div>
+        <h2 class="results__title">Here's Your Upgraded Website</h2>
+        <p class="results__sub">Drag the slider to compare your current site with the AI-powered upgrade.</p>
+      </div>
+
+      <!-- Before / After Slider -->
+      <div class="comparison">
+        <img-comparison-slider class="comparison__slider">
+          <img slot="first" id="beforeImg" src="" alt="Your current website" />
+          <img slot="second" id="afterImg" src="" alt="Your upgraded website" />
+        </img-comparison-slider>
+        <div class="comparison__labels">
+          <span class="comparison__label comparison__label--before">Current Site</span>
+          <span class="comparison__label comparison__label--after">Upgraded Site</span>
+        </div>
+      </div>
+
+      <!-- Preview Link -->
+      <div class="results__preview-link">
+        <a href="#" id="previewLink" target="_blank" class="btn btn--outline">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Open Full Preview
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ CTA / LEAD CAPTURE ═══════════════ -->
+  <section class="cta hidden" id="ctaSection">
+    <div class="container">
+      <div class="cta__card">
+        <h2 class="cta__title">Like What You See?</h2>
+        <p class="cta__sub">This is just a preview. Let's talk about making it real — a fully polished, production-ready site built by Paul, delivered in 24 hours.</p>
+
+        <form class="cta__form" id="leadForm">
+          <div class="cta__form-row">
+            <div class="cta__field">
+              <label for="leadName" class="cta__label">Your Name</label>
+              <input type="text" id="leadName" class="cta__input" placeholder="Jane Smith" required>
+            </div>
+            <div class="cta__field">
+              <label for="leadEmail" class="cta__label">Email</label>
+              <input type="email" id="leadEmail" class="cta__input" placeholder="jane@mybusiness.com" required>
+            </div>
+          </div>
+          <div class="cta__field">
+            <label for="leadPhone" class="cta__label">Phone <span class="cta__optional">(optional)</span></label>
+            <input type="tel" id="leadPhone" class="cta__input" placeholder="(555) 123-4567">
+          </div>
+          <div class="cta__field">
+            <label for="leadMessage" class="cta__label">Anything else I should know? <span class="cta__optional">(optional)</span></label>
+            <textarea id="leadMessage" class="cta__input cta__textarea" rows="3" placeholder="Budget, timeline, specific pages you need..."></textarea>
+          </div>
+          <button type="submit" class="btn btn--primary cta__submit" id="leadSubmitBtn">
+            <span class="btn__text">Book a Free Call with Paul</span>
+            <svg class="btn__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </button>
+        </form>
+
+        <p class="cta__note">No commitment. Paul will personally reach out within 24 hours to discuss your upgrade.</p>
+
+        <!-- Success state (hidden until form submits) -->
+        <div class="cta__success hidden" id="leadSuccess">
+          <div class="cta__success-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <h3 class="cta__success-title">You're on the list!</h3>
+          <p class="cta__success-text">Paul will reach out within 24 hours to discuss your upgrade. Check your inbox.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ HOW IT WORKS ═══════════════ -->
+  <section class="how" id="how">
+    <div class="container">
+      <h2 class="how__title">How It Works</h2>
+      <div class="how__grid">
+        <div class="how__step">
+          <div class="how__num">1</div>
+          <h3>Paste Your URL</h3>
+          <p>Enter your current website address. Our AI scans your design, content, and structure.</p>
+        </div>
+        <div class="how__step">
+          <div class="how__num">2</div>
+          <h3>See the Upgrade</h3>
+          <p>In under 30 seconds, see a side-by-side comparison of your current site vs. the upgrade.</p>
+        </div>
+        <div class="how__step">
+          <div class="how__num">3</div>
+          <h3>Talk to Paul</h3>
+          <p>Like the preview? Drop your info and Paul will personally reach out to discuss your upgrade.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ FOOTER ═══════════════ -->
+  <footer class="footer">
+    <div class="container footer__inner">
+      <p>&copy; 2026 Paul Tran Studio. All rights reserved.</p>
+      <a href="https://paultranstudio.com" class="footer__link">paultranstudio.com</a>
+    </div>
+  </footer>
+
+  <!-- App Logic -->
+  <script src="/js/app.js"></script>
+</body>
+</html>
