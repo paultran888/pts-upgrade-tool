@@ -46,6 +46,8 @@
           <svg class="hero__input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
           <input type="text" id="urlInput" class="hero__input" placeholder="Enter your website URL (e.g. mybusiness.com)" autocomplete="url" required>
         </div>
+        <!-- Honeypot: hidden from humans, bots auto-fill it -->
+        <input type="text" id="_hp" name="_hp" style="position:absolute;left:-9999px;top:-9999px;opacity:0;height:0;width:0;z-index:-1;" tabindex="-1" autocomplete="off" aria-hidden="true">
         <button type="submit" class="btn btn--primary hero__btn" id="analyzeBtn">
           <span class="btn__text">See Your Upgrade</span>
           <svg class="btn__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>

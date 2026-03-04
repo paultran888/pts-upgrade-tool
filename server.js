@@ -32,6 +32,74 @@ const MODEL = 'claude-sonnet-4-6';
 const PREVIEW_TTL_DAYS = 30;
 const PREVIEW_TTL_MS = PREVIEW_TTL_DAYS * 24 * 60 * 60 * 1000;
 
+/* ══════════════════════════════════════════════
+   ABUSE PREVENTION — Rate Limits & Guardrails
+   ══════════════════════════════════════════════ */
+const RATE_LIMIT_PER_IP     = parseInt(process.env.RATE_LIMIT_PER_IP, 10)     || 3;   // Max analyses per IP per day
+const RATE_LIMIT_CONCURRENT = parseInt(process.env.RATE_LIMIT_CONCURRENT, 10) || 1;   // Max in-flight jobs per IP
+const GLOBAL_DAILY_CAP      = parseInt(process.env.GLOBAL_DAILY_CAP, 10)      || 50;  // Max total analyses per day (server-wide)
+const URL_COOLDOWN_HOURS    = parseInt(process.env.URL_COOLDOWN_HOURS, 10)    || 24;  // Skip re-analyzing same URL within this window
+const MIN_SUBMIT_TIME_MS    = 2000; // Minimum time between page load and submit (bot detection)
+
+// In-memory rate tracking (resets on redeploy, which is fine for Railway)
+const ipRequestLog  = new Map(); // IP -> [{ timestamp, jobId }]
+let   globalDailyCount = 0;
+let   globalDayKey     = todayKey();
+
+function todayKey() { return new Date().toISOString().slice(0, 10); }
+
+function resetDailyCountIfNeeded() {
+  const today = todayKey();
+  if (globalDayKey !== today) {
+    globalDailyCount = 0;
+    globalDayKey = today;
+    ipRequestLog.clear(); // Fresh day, clear all IP logs
+  }
+}
+
+function getIp(req) {
+  // Railway / Cloudflare / nginx proxy
+  return req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+      || req.headers['x-real-ip']
+      || req.connection?.remoteAddress
+      || req.ip;
+}
+
+function getIpLog(ip) {
+  if (!ipRequestLog.has(ip)) ipRequestLog.set(ip, []);
+  return ipRequestLog.get(ip);
+}
+
+function countTodayRequests(ip) {
+  const log = getIpLog(ip);
+  const dayStart = new Date(todayKey()).getTime();
+  return log.filter(e => e.timestamp >= dayStart).length;
+}
+
+function countActiveJobs(ip) {
+  const log = getIpLog(ip);
+  return log.filter(e => {
+    const job = getJob(e.jobId);
+    return job && (job.status === 'queued' || job.status === 'processing');
+  }).length;
+}
+
+function recentUrlMatch(url) {
+  // Check if this exact URL (normalized) was analyzed recently
+  const cutoff = Date.now() - (URL_COOLDOWN_HOURS * 60 * 60 * 1000);
+  try {
+    const files = fs.readdirSync(JOBS_DIR).filter(f => f.endsWith('.json'));
+    for (const file of files) {
+      const fp = path.join(JOBS_DIR, file);
+      const job = JSON.parse(fs.readFileSync(fp, 'utf8'));
+      if (job.url === url && new Date(job.createdAt).getTime() > cutoff && job.status === 'complete') {
+        return job.id; // Return existing jobId so we can reuse it
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
 // Ensure directories exist
 [JOBS_DIR, LEADS_DIR, SCREENSHOTS_DIR].forEach(dir => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -63,10 +131,22 @@ function saveJob(job) {
    Returns: { jobId, status }
    ============================================ */
 app.post('/api/analyze', (req, res) => {
-  const { url } = req.body;
+  const { url, _hp, _t } = req.body; // _hp = honeypot, _t = page load timestamp
 
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
+  }
+
+  // ── Bot detection: honeypot field should be empty ──
+  if (_hp) {
+    console.log(`[BLOCKED] Honeypot triggered from ${getIp(req)}`);
+    return res.status(400).json({ error: 'Invalid request' });
+  }
+
+  // ── Bot detection: too fast (submitted < 2s after page load) ──
+  if (_t && (Date.now() - parseInt(_t, 10)) < MIN_SUBMIT_TIME_MS) {
+    console.log(`[BLOCKED] Too-fast submit from ${getIp(req)} (${Date.now() - parseInt(_t, 10)}ms)`);
+    return res.status(429).json({ error: 'Please wait a moment before submitting.' });
   }
 
   // Basic URL validation
@@ -77,12 +157,50 @@ app.post('/api/analyze', (req, res) => {
     return res.status(400).json({ error: 'Invalid URL' });
   }
 
+  // ── Block obviously invalid targets ──
+  const hostname = parsedUrl.hostname.toLowerCase();
+  const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', 'example.com', 'test.com'];
+  if (blockedHosts.some(h => hostname === h) || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+    return res.status(400).json({ error: 'Please enter a real website URL' });
+  }
+
+  // ── Rate limiting ──
+  resetDailyCountIfNeeded();
+  const ip = getIp(req);
+
+  // Global daily cap
+  if (globalDailyCount >= GLOBAL_DAILY_CAP) {
+    console.log(`[RATE LIMIT] Global daily cap (${GLOBAL_DAILY_CAP}) reached`);
+    return res.status(429).json({ error: 'Our tool is very popular today! Please try again tomorrow.' });
+  }
+
+  // Per-IP daily limit
+  if (countTodayRequests(ip) >= RATE_LIMIT_PER_IP) {
+    console.log(`[RATE LIMIT] IP ${ip} hit daily limit (${RATE_LIMIT_PER_IP})`);
+    return res.status(429).json({ error: `You've used all ${RATE_LIMIT_PER_IP} free analyses for today. Come back tomorrow, or contact us to get started now.` });
+  }
+
+  // Per-IP concurrent limit
+  if (countActiveJobs(ip) >= RATE_LIMIT_CONCURRENT) {
+    console.log(`[RATE LIMIT] IP ${ip} has active job in progress`);
+    return res.status(429).json({ error: 'You already have an analysis in progress. Please wait for it to finish.' });
+  }
+
+  // ── URL dedup: reuse recent result for same URL ──
+  const existingJobId = recentUrlMatch(parsedUrl.href);
+  if (existingJobId) {
+    console.log(`[DEDUP] Reusing job ${existingJobId} for ${parsedUrl.href} (IP: ${ip})`);
+    return res.json({ jobId: existingJobId, status: 'complete', reused: true });
+  }
+
+  // ── All checks passed — create job ──
   const jobId = uuidv4().split('-')[0]; // Short ID
   const createdAt = new Date();
   const expiresAt = new Date(createdAt.getTime() + PREVIEW_TTL_MS);
   const job = {
     id: jobId,
     url: parsedUrl.href,
+    ip: ip, // Track for logging
     status: 'queued',
     progress: 0,
     progressMessage: 'Starting analysis...',
@@ -96,12 +214,15 @@ app.post('/api/analyze', (req, res) => {
   };
 
   saveJob(job);
+  globalDailyCount++;
+  getIpLog(ip).push({ timestamp: Date.now(), jobId });
 
   // Start processing in background (non-blocking)
   processJob(jobId).catch(err => {
     console.error(`Job ${jobId} failed:`, err.message);
   });
 
+  console.log(`[NEW JOB] ${jobId} for ${parsedUrl.href} (IP: ${ip}, today: ${countTodayRequests(ip)}/${RATE_LIMIT_PER_IP}, global: ${globalDailyCount}/${GLOBAL_DAILY_CAP})`);
   res.json({ jobId, status: 'queued' });
 });
 

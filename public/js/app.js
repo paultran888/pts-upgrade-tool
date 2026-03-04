@@ -40,6 +40,7 @@
   /* ── State ── */
   let currentJobId = null;
   let pollInterval = null;
+  const pageLoadTime = Date.now(); // Bot detection: track when page was loaded
 
   /* ═══════════════════════════════════════════
      FORM SUBMISSION
@@ -49,6 +50,9 @@
     const url = urlInput.value.trim();
     if (!url) return;
 
+    // Honeypot: grab hidden field value (bots auto-fill it, humans don't see it)
+    const hp = $('#_hp') ? $('#_hp').value : '';
+
     analyzeBtn.disabled = true;
     analyzeBtn.querySelector('.btn__text').textContent = 'Analyzing...';
 
@@ -56,7 +60,7 @@
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url, _hp: hp, _t: String(pageLoadTime) })
       });
 
       const data = await res.json();
@@ -66,8 +70,14 @@
       }
 
       currentJobId = data.jobId;
-      showProgress(url);
-      startPolling();
+
+      // If server reused a cached result, skip straight to results
+      if (data.reused) {
+        showResults(currentJobId);
+      } else {
+        showProgress(url);
+        startPolling();
+      }
 
     } catch (err) {
       showError(err.message);
