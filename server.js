@@ -210,7 +210,7 @@ function getJob(jobId) {
 function saveJob(job) {
   // Store generatedHtml in a separate file to avoid JSON bloat/corruption
   const htmlContent = job.generatedHtml;
-  if (htmlContent) {
+  if (htmlContent && htmlContent !== '__FILE__') {
     const htmlPath = path.join(JOBS_DIR, `${job.id}.html`);
     fs.writeFileSync(htmlPath, htmlContent, 'utf8');
     console.log(`[SAVE] Wrote ${htmlContent.length} chars of HTML to ${job.id}.html`);
