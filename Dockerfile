@@ -13,7 +13,9 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --production
+
+# Cache-bust: this ARG changes every build, invalidating COPY below
+ARG CACHEBUST=1
 COPY . .
 
 CMD ["node", "server.js"]
-# v20-force-rebuild 1772751993
