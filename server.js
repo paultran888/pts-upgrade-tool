@@ -10,7 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const { scrapeWebsite, closeBrowser } = require('./lib/scraper');
 const { analyzeWebsite } = require('./lib/analyzer');
-const { buildUpgradedSite } = require('./lib/builder');
+const { buildUpgradedSite } = require('./lib/site-builder');
 const { screenshotHTML } = require('./lib/screenshoter');
 
 /* ── Stripe (optional — works without it, just hides checkout) ── */
