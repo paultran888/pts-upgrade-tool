@@ -208,8 +208,30 @@ function getJob(jobId) {
 }
 
 function saveJob(job) {
+  // Store generatedHtml in a separate file to avoid JSON bloat/corruption
+  const htmlContent = job.generatedHtml;
+  if (htmlContent) {
+    const htmlPath = path.join(JOBS_DIR, `${job.id}.html`);
+    fs.writeFileSync(htmlPath, htmlContent, 'utf8');
+    console.log(`[SAVE] Wrote ${htmlContent.length} chars of HTML to ${job.id}.html`);
+    job.generatedHtml = '__FILE__'; // Marker that HTML is stored separately
+  }
   const fp = path.join(JOBS_DIR, `${job.id}.json`);
   fs.writeFileSync(fp, JSON.stringify(job, null, 2));
+}
+
+function getJobHtml(jobId) {
+  // First check for separate HTML file
+  const htmlPath = path.join(JOBS_DIR, `${jobId}.html`);
+  if (fs.existsSync(htmlPath)) {
+    return fs.readFileSync(htmlPath, 'utf8');
+  }
+  // Fallback: check inline in job JSON (old format)
+  const job = getJob(jobId);
+  if (job && job.generatedHtml && job.generatedHtml !== '__FILE__') {
+    return job.generatedHtml;
+  }
+  return null;
 }
 
 /* ============================================
@@ -346,11 +368,12 @@ app.get('/api/status/:jobId', (req, res) => {
    GET /api/preview/:jobId
    ============================================ */
 app.get('/api/preview/:jobId', (req, res) => {
-  const job = getJob(req.params.jobId);
-  if (!job || !job.generatedHtml) {
+  const html = getJobHtml(req.params.jobId);
+  if (!html) {
     return res.status(404).send('Preview not available');
   }
-  res.type('html').send(job.generatedHtml);
+  console.log(`[PREVIEW] Serving ${html.length} chars of HTML for job ${req.params.jobId}`);
+  res.type('html').send(html);
 });
 
 /* ============================================
@@ -551,6 +574,7 @@ async function processJob(jobId) {
 
     const html = await buildUpgradedSite(analysis, { model: MODEL });
     clearInterval(buildUpdates);
+    console.log(`[BUILD] Job ${jobId} — generated ${html ? html.length : 0} chars of HTML (starts with: ${html ? html.substring(0, 50) : 'NULL'})`);
     updateJob(jobId, { progress: 85, progressMessage: 'Upgrade built! Generating preview...', progressDetail: 'Your upgraded site is ready. Now capturing a screenshot so you can compare side-by-side.', generatedHtml: html });
 
     // ── Step 4: Screenshot ──
