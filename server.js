@@ -50,7 +50,8 @@ const SCREENSHOTS_DIR = process.env.DATA_DIR
   : path.join(__dirname, 'public', 'screenshots'); // Local dev: serve from public/
 
 /* ── Model Config ── */
-const MODEL = 'claude-sonnet-4-6';
+const ANALYZE_MODEL = process.env.ANALYZE_MODEL || 'claude-sonnet-4-6';
+const BUILD_MODEL = process.env.BUILD_MODEL || 'claude-opus-4-6';
 
 /* ── Preview expiry (30 days) ── */
 const PREVIEW_TTL_DAYS = 30;
@@ -526,7 +527,7 @@ async function processJob(jobId) {
   const job = getJob(jobId);
   if (!job) return;
 
-  console.log(`[PREVIEW] Job ${jobId} — using ${MODEL}`);
+  console.log(`[PREVIEW] Job ${jobId} — analyze: ${ANALYZE_MODEL}, build: ${BUILD_MODEL}`);
 
   try {
     // ── Step 1: Scrape ──
@@ -554,7 +555,7 @@ async function processJob(jobId) {
       { progress: 53, progressMessage: 'Finalizing analysis report...', progressDetail: 'Compiling all findings into an upgrade strategy tailored to your specific business and audience.' },
     ], 8000);
 
-    const analysis = await analyzeWebsite(scraped.content, { model: MODEL });
+    const analysis = await analyzeWebsite(scraped.content, { model: ANALYZE_MODEL });
     clearInterval(analysisUpdates);
     updateJob(jobId, { progress: 55, progressMessage: 'Analysis complete — building your upgrade strategy', progressDetail: 'Found opportunities to improve. Now writing a custom upgrade strategy for your specific business.', analysis });
 
@@ -572,7 +573,7 @@ async function processJob(jobId) {
       { progress: 83, progressMessage: 'Final code review...', progressDetail: 'Cleaning up the code, optimizing performance, and ensuring everything renders perfectly.' },
     ], 7000);
 
-    const html = await buildUpgradedSite(analysis, { model: MODEL });
+    const html = await buildUpgradedSite(analysis, { model: BUILD_MODEL });
     clearInterval(buildUpdates);
     console.log(`[BUILD] Job ${jobId} — generated ${html ? html.length : 0} chars of HTML (starts with: ${html ? html.substring(0, 50) : 'NULL'})`);
     updateJob(jobId, { progress: 85, progressMessage: 'Upgrade built! Generating preview...', progressDetail: 'Your upgraded site is ready. Now capturing a screenshot so you can compare side-by-side.', generatedHtml: html });
