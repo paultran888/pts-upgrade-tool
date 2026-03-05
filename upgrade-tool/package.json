@@ -1,0 +1,18 @@
+{
+  "name": "pts-upgrade-tool",
+  "version": "2.0.0",
+  "description": "Paul Tran Studio — Free Website Upgrade Preview + Lead Capture",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^5.0.0",
+    "puppeteer": "^23.0.0",
+    "@anthropic-ai/sdk": "^0.39.0",
+    "uuid": "^11.0.0",
+    "stripe": "^17.0.0",
+    "resend": "^4.0.0"
+  }
+}

@@ -1,0 +1,687 @@
+/**
+ * Paul Tran Studio — Website Upgrade Tool
+ * Free preview + Stripe checkout + auto-email via Resend
+ */
+
+const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const { v4: uuidv4 } = require('uuid');
+
+const { scrapeWebsite, closeBrowser } = require('./lib/scraper');
+const { analyzeWebsite } = require('./lib/analyzer');
+const { buildUpgradedSite } = require('./lib/builder');
+const { screenshotHTML } = require('./lib/screenshoter');
+
+/* ── Stripe (optional — works without it, just hides checkout) ── */
+let stripe = null;
+const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || '';
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+if (process.env.STRIPE_SECRET_KEY) {
+  const Stripe = require('stripe');
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  console.log('[STRIPE] Initialized');
+} else {
+  console.log('[STRIPE] No STRIPE_SECRET_KEY — checkout disabled');
+}
+
+/* ── Resend (optional — works without it, just skips emails) ── */
+let resend = null;
+const RESEND_FROM = process.env.RESEND_FROM || 'Paul Tran Studio <hello@paultranstudio.com>';
+const PAUL_EMAIL = process.env.PAUL_EMAIL || 'paul@paultranstudio.com';
+if (process.env.RESEND_API_KEY) {
+  const { Resend } = require('resend');
+  resend = new Resend(process.env.RESEND_API_KEY);
+  console.log('[RESEND] Initialized');
+} else {
+  console.log('[RESEND] No RESEND_API_KEY — emails disabled');
+}
+
+const app = express();
+const PORT = process.env.PORT || 3090;
+const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+
+/* ── Persistent data paths (set DATA_DIR to a Railway volume mount, e.g. /data) ── */
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const JOBS_DIR = path.join(DATA_DIR, 'jobs');
+const LEADS_DIR = path.join(DATA_DIR, 'leads');
+const SCREENSHOTS_DIR = process.env.DATA_DIR
+  ? path.join(DATA_DIR, 'screenshots')        // Volume: screenshots persist alongside jobs
+  : path.join(__dirname, 'public', 'screenshots'); // Local dev: serve from public/
+
+/* ── Model Config ── */
+const ANALYZE_MODEL = process.env.ANALYZE_MODEL || 'claude-sonnet-4-6';
+const BUILD_MODEL = process.env.BUILD_MODEL || 'claude-opus-4-6';
+
+/* ── Preview expiry (30 days) ── */
+const PREVIEW_TTL_DAYS = 30;
+const PREVIEW_TTL_MS = PREVIEW_TTL_DAYS * 24 * 60 * 60 * 1000;
+
+/* ══════════════════════════════════════════════
+   ABUSE PREVENTION — Rate Limits & Guardrails
+   ══════════════════════════════════════════════ */
+const RATE_LIMIT_PER_IP     = parseInt(process.env.RATE_LIMIT_PER_IP, 10)     || 3;   // Max analyses per IP per day
+const RATE_LIMIT_CONCURRENT = parseInt(process.env.RATE_LIMIT_CONCURRENT, 10) || 1;   // Max in-flight jobs per IP
+const GLOBAL_DAILY_CAP      = parseInt(process.env.GLOBAL_DAILY_CAP, 10)      || 50;  // Max total analyses per day (server-wide)
+const URL_COOLDOWN_HOURS    = parseInt(process.env.URL_COOLDOWN_HOURS, 10)    || 24;  // Skip re-analyzing same URL within this window
+const MIN_SUBMIT_TIME_MS    = 2000; // Minimum time between page load and submit (bot detection)
+
+// In-memory rate tracking (resets on redeploy, which is fine for Railway)
+const ipRequestLog  = new Map(); // IP -> [{ timestamp, jobId }]
+let   globalDailyCount = 0;
+let   globalDayKey     = todayKey();
+
+function todayKey() { return new Date().toISOString().slice(0, 10); }
+
+function resetDailyCountIfNeeded() {
+  const today = todayKey();
+  if (globalDayKey !== today) {
+    globalDailyCount = 0;
+    globalDayKey = today;
+    ipRequestLog.clear(); // Fresh day, clear all IP logs
+  }
+}
+
+function getIp(req) {
+  // Railway / Cloudflare / nginx proxy
+  return req.headers['x-forwarded-for']?.split(',')[0]?.trim()
+      || req.headers['x-real-ip']
+      || req.connection?.remoteAddress
+      || req.ip;
+}
+
+function getIpLog(ip) {
+  if (!ipRequestLog.has(ip)) ipRequestLog.set(ip, []);
+  return ipRequestLog.get(ip);
+}
+
+function countTodayRequests(ip) {
+  const log = getIpLog(ip);
+  const dayStart = new Date(todayKey()).getTime();
+  return log.filter(e => e.timestamp >= dayStart).length;
+}
+
+function countActiveJobs(ip) {
+  const log = getIpLog(ip);
+  return log.filter(e => {
+    const job = getJob(e.jobId);
+    return job && (job.status === 'queued' || job.status === 'processing');
+  }).length;
+}
+
+function recentUrlMatch(url) {
+  // Check if this exact URL (normalized) was analyzed recently
+  const cutoff = Date.now() - (URL_COOLDOWN_HOURS * 60 * 60 * 1000);
+  try {
+    const files = fs.readdirSync(JOBS_DIR).filter(f => f.endsWith('.json'));
+    for (const file of files) {
+      const fp = path.join(JOBS_DIR, file);
+      const job = JSON.parse(fs.readFileSync(fp, 'utf8'));
+      if (job.url === url && new Date(job.createdAt).getTime() > cutoff && job.status === 'complete') {
+        return job.id; // Return existing jobId so we can reuse it
+      }
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+// Ensure directories exist
+[JOBS_DIR, LEADS_DIR, SCREENSHOTS_DIR].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
+/* ============================================
+   MIDDLEWARE
+   ============================================ */
+// Stripe webhook needs raw body — must be BEFORE express.json()
+app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripe || !STRIPE_WEBHOOK_SECRET) {
+    return res.status(400).json({ error: 'Stripe not configured' });
+  }
+
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('[STRIPE WEBHOOK] Signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    const jobId = session.metadata?.jobId;
+    const customerEmail = session.customer_details?.email || session.metadata?.email;
+
+    console.log(`[STRIPE] Payment received for job ${jobId} from ${customerEmail}`);
+
+    if (jobId) {
+      const job = getJob(jobId);
+      if (job) {
+        job.paid = true;
+        job.paidAt = new Date().toISOString();
+        job.customerEmail = customerEmail;
+        job.stripeSessionId = session.id;
+        job.amountPaid = session.amount_total;
+        saveJob(job);
+      }
+    }
+
+    // Notify Paul
+    await sendEmail({
+      to: PAUL_EMAIL,
+      subject: `New Payment! ${session.metadata?.businessName || 'Website Upgrade'} — $${(session.amount_total / 100).toFixed(0)}`,
+      html: `<h2>New payment received!</h2>
+        <p><strong>Customer:</strong> ${customerEmail}</p>
+        <p><strong>Business:</strong> ${session.metadata?.businessName || 'N/A'}</p>
+        <p><strong>URL:</strong> ${session.metadata?.url || 'N/A'}</p>
+        <p><strong>Amount:</strong> $${(session.amount_total / 100).toFixed(0)}</p>
+        <p><strong>Job ID:</strong> ${jobId}</p>
+        <p><a href="${BASE_URL}/api/preview/${jobId}">View Preview</a></p>`
+    });
+
+    // Send confirmation to customer
+    if (customerEmail) {
+      await sendEmail({
+        to: customerEmail,
+        subject: 'Payment Confirmed — Your Website Upgrade is Underway!',
+        html: `<h2>You're all set!</h2>
+          <p>Thanks for choosing Paul Tran Studio. Paul will personally review and polish your upgrade, then deliver your production-ready site within 24 hours.</p>
+          <p><a href="${BASE_URL}/api/preview/${jobId}">View Your Preview</a></p>
+          <p>If you have any questions, reply to this email or reach out to paul@paultranstudio.com.</p>
+          <p>— Paul Tran Studio</p>`
+      });
+    }
+  }
+
+  res.json({ received: true });
+});
+
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
+
+/* ============================================
+   JOB PERSISTENCE (JSON files for MVP)
+   ============================================ */
+function getJob(jobId) {
+  const fp = path.join(JOBS_DIR, `${jobId}.json`);
+  if (!fs.existsSync(fp)) return null;
+  return JSON.parse(fs.readFileSync(fp, 'utf8'));
+}
+
+function saveJob(job) {
+  // Store generatedHtml in a separate file to avoid JSON bloat/corruption
+  const htmlContent = job.generatedHtml;
+  if (htmlContent && htmlContent !== '__FILE__') {
+    const htmlPath = path.join(JOBS_DIR, `${job.id}.html`);
+    fs.writeFileSync(htmlPath, htmlContent, 'utf8');
+    console.log(`[SAVE] Wrote ${htmlContent.length} chars of HTML to ${job.id}.html`);
+    job.generatedHtml = '__FILE__'; // Marker that HTML is stored separately
+  }
+  const fp = path.join(JOBS_DIR, `${job.id}.json`);
+  fs.writeFileSync(fp, JSON.stringify(job, null, 2));
+}
+
+function getJobHtml(jobId) {
+  // First check for separate HTML file
+  const htmlPath = path.join(JOBS_DIR, `${jobId}.html`);
+  if (fs.existsSync(htmlPath)) {
+    return fs.readFileSync(htmlPath, 'utf8');
+  }
+  // Fallback: check inline in job JSON (old format)
+  const job = getJob(jobId);
+  if (job && job.generatedHtml && job.generatedHtml !== '__FILE__') {
+    return job.generatedHtml;
+  }
+  return null;
+}
+
+/* ============================================
+   API: ANALYZE WEBSITE
+   POST /api/analyze { url: "https://example.com" }
+   Returns: { jobId, status }
+   ============================================ */
+app.post('/api/analyze', (req, res) => {
+  const { url, _hp, _t } = req.body; // _hp = honeypot, _t = page load timestamp
+
+  if (!url) {
+    return res.status(400).json({ error: 'URL is required' });
+  }
+
+  // ── Bot detection: honeypot field should be empty ──
+  if (_hp) {
+    console.log(`[BLOCKED] Honeypot triggered from ${getIp(req)}`);
+    return res.status(400).json({ error: 'Invalid request' });
+  }
+
+  // ── Bot detection: too fast (submitted < 2s after page load) ──
+  if (_t && (Date.now() - parseInt(_t, 10)) < MIN_SUBMIT_TIME_MS) {
+    console.log(`[BLOCKED] Too-fast submit from ${getIp(req)} (${Date.now() - parseInt(_t, 10)}ms)`);
+    return res.status(429).json({ error: 'Please wait a moment before submitting.' });
+  }
+
+  // Basic URL validation
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url.startsWith('http') ? url : `https://${url}`);
+  } catch (e) {
+    return res.status(400).json({ error: 'Invalid URL' });
+  }
+
+  // ── Block obviously invalid targets ──
+  const hostname = parsedUrl.hostname.toLowerCase();
+  const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', 'example.com', 'test.com'];
+  if (blockedHosts.some(h => hostname === h) || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+    return res.status(400).json({ error: 'Please enter a real website URL' });
+  }
+
+  // ── Rate limiting ──
+  resetDailyCountIfNeeded();
+  const ip = getIp(req);
+
+  // Global daily cap
+  if (globalDailyCount >= GLOBAL_DAILY_CAP) {
+    console.log(`[RATE LIMIT] Global daily cap (${GLOBAL_DAILY_CAP}) reached`);
+    return res.status(429).json({ error: 'Our tool is very popular today! Please try again tomorrow.' });
+  }
+
+  // Per-IP daily limit
+  if (countTodayRequests(ip) >= RATE_LIMIT_PER_IP) {
+    console.log(`[RATE LIMIT] IP ${ip} hit daily limit (${RATE_LIMIT_PER_IP})`);
+    return res.status(429).json({ error: `You've used all ${RATE_LIMIT_PER_IP} free analyses for today. Come back tomorrow, or contact us to get started now.` });
+  }
+
+  // Per-IP concurrent limit
+  if (countActiveJobs(ip) >= RATE_LIMIT_CONCURRENT) {
+    console.log(`[RATE LIMIT] IP ${ip} has active job in progress`);
+    return res.status(429).json({ error: 'You already have an analysis in progress. Please wait for it to finish.' });
+  }
+
+  // ── URL dedup: reuse recent result for same URL ──
+  const existingJobId = recentUrlMatch(parsedUrl.href);
+  if (existingJobId) {
+    console.log(`[DEDUP] Reusing job ${existingJobId} for ${parsedUrl.href} (IP: ${ip})`);
+    return res.json({ jobId: existingJobId, status: 'complete', reused: true });
+  }
+
+  // ── All checks passed — create job ──
+  const jobId = uuidv4().split('-')[0]; // Short ID
+  const createdAt = new Date();
+  const expiresAt = new Date(createdAt.getTime() + PREVIEW_TTL_MS);
+  const job = {
+    id: jobId,
+    url: parsedUrl.href,
+    ip: ip, // Track for logging
+    status: 'queued',
+    progress: 0,
+    progressMessage: 'Starting analysis...',
+    createdAt: createdAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    analysis: null,
+    generatedHtml: null,
+    beforeScreenshot: null,
+    afterScreenshot: null,
+    error: null
+  };
+
+  saveJob(job);
+  globalDailyCount++;
+  getIpLog(ip).push({ timestamp: Date.now(), jobId });
+
+  // Start processing in background (non-blocking)
+  processJob(jobId).catch(err => {
+    console.error(`Job ${jobId} failed:`, err.message);
+  });
+
+  console.log(`[NEW JOB] ${jobId} for ${parsedUrl.href} (IP: ${ip}, today: ${countTodayRequests(ip)}/${RATE_LIMIT_PER_IP}, global: ${globalDailyCount}/${GLOBAL_DAILY_CAP})`);
+  res.json({ jobId, status: 'queued' });
+});
+
+/* ============================================
+   API: GET JOB STATUS
+   GET /api/status/:jobId
+   ============================================ */
+app.get('/api/status/:jobId', (req, res) => {
+  const job = getJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+
+  res.json({
+    id: job.id,
+    url: job.url,
+    status: job.status,
+    progress: job.progress,
+    progressMessage: job.progressMessage,
+    progressDetail: job.progressDetail || '',
+    beforeScreenshot: job.beforeScreenshot ? `/screenshots/${job.id}-before.png` : null,
+    afterScreenshot: job.afterScreenshot ? `/screenshots/${job.id}-after.png` : null,
+    analysis: job.status === 'complete' ? {
+      businessName: job.analysis?.businessName,
+      businessType: job.analysis?.businessType,
+      designScore: job.analysis?.currentAssessment?.designScore
+    } : null,
+    error: job.error,
+    createdAt: job.createdAt,
+    expiresAt: job.expiresAt || null
+  });
+});
+
+/* ============================================
+   API: PREVIEW GENERATED HTML
+   GET /api/preview/:jobId
+   ============================================ */
+app.get('/api/preview/:jobId', (req, res) => {
+  const html = getJobHtml(req.params.jobId);
+  if (!html) {
+    return res.status(404).send('Preview not available');
+  }
+  console.log(`[PREVIEW] Serving ${html.length} chars of HTML for job ${req.params.jobId}`);
+  res.type('html').send(html);
+});
+
+/* ============================================
+   API: CAPTURE LEAD (simplified — email only)
+   POST /api/lead { jobId, email }
+   ============================================ */
+app.post('/api/lead', async (req, res) => {
+  const { jobId, email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  const job = jobId ? getJob(jobId) : null;
+  const businessName = job?.analysis?.businessName || null;
+
+  const lead = {
+    id: uuidv4().split('-')[0],
+    jobId: jobId || null,
+    url: job?.url || null,
+    businessName,
+    email,
+    createdAt: new Date().toISOString()
+  };
+
+  // Save lead
+  const fp = path.join(LEADS_DIR, `${lead.id}.json`);
+  fs.writeFileSync(fp, JSON.stringify(lead, null, 2));
+
+  // Append to summary file for easy scanning
+  try {
+    const summaryPath = path.join(DATA_DIR, 'LEADS.txt');
+    const line = `NEW LEAD: ${lead.businessName || lead.url || 'Unknown'}\nEmail: ${lead.email}\nJob: ${lead.jobId || 'N/A'}\nTime: ${lead.createdAt}\n---\n`;
+    fs.appendFileSync(summaryPath, line);
+  } catch (e) { /* ignore */ }
+
+  console.log(`[LEAD] ${lead.email} — ${lead.businessName || lead.url}`);
+
+  // Auto-email: Send preview link to user
+  const previewUrl = jobId ? `${BASE_URL}/api/preview/${jobId}` : null;
+  await sendEmail({
+    to: email,
+    subject: `Your Website Upgrade Preview${businessName ? ` — ${businessName}` : ''}`,
+    html: `<h2>Here's your upgrade preview!</h2>
+      ${previewUrl ? `<p><a href="${previewUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Your Preview</a></p>` : ''}
+      <p>This preview will be available for 30 days. Bookmark it or share it with your team.</p>
+      <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+      <p><strong>Ready to make it real?</strong></p>
+      <p>Paul will personally review and polish your upgrade into a production-ready site. Starting at $500, delivered in 24 hours.</p>
+      <p>Just reply to this email or <a href="${BASE_URL}">visit the upgrade tool</a> to get started.</p>
+      <p>— Paul Tran Studio</p>`
+  });
+
+  // Notify Paul
+  await sendEmail({
+    to: PAUL_EMAIL,
+    subject: `New Lead: ${businessName || lead.url || email}`,
+    html: `<h3>New lead from upgrade tool</h3>
+      <p><strong>Email:</strong> ${email}</p>
+      <p><strong>Business:</strong> ${businessName || 'N/A'}</p>
+      <p><strong>URL:</strong> ${lead.url || 'N/A'}</p>
+      <p><strong>Job:</strong> ${jobId || 'N/A'}</p>
+      ${previewUrl ? `<p><a href="${previewUrl}">View Preview</a></p>` : ''}`
+  });
+
+  res.json({ success: true });
+});
+
+/* ============================================
+   API: STRIPE CHECKOUT
+   POST /api/checkout { jobId }
+   ============================================ */
+app.post('/api/checkout', async (req, res) => {
+  if (!stripe || !STRIPE_PRICE_ID) {
+    return res.status(400).json({ error: 'Payments are not yet configured. Please contact paul@paultranstudio.com to get started.' });
+  }
+
+  const { jobId } = req.body;
+  if (!jobId) {
+    return res.status(400).json({ error: 'Job ID is required' });
+  }
+
+  const job = getJob(jobId);
+  if (!job) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
+      metadata: {
+        jobId,
+        url: job.url,
+        businessName: job.analysis?.businessName || ''
+      },
+      success_url: `${BASE_URL}?paid=1&job=${jobId}`,
+      cancel_url: `${BASE_URL}?cancelled=1&job=${jobId}`,
+    });
+
+    console.log(`[STRIPE] Checkout session created for job ${jobId}: ${session.id}`);
+    res.json({ url: session.url });
+
+  } catch (err) {
+    console.error('[STRIPE] Checkout error:', err.message);
+    res.status(500).json({ error: 'Failed to create checkout session. Please try again.' });
+  }
+});
+
+/* ============================================
+   EMAIL HELPER (Resend)
+   ============================================ */
+async function sendEmail({ to, subject, html }) {
+  if (!resend) {
+    console.log(`[EMAIL SKIPPED] No Resend configured — would have sent to ${to}: ${subject}`);
+    return;
+  }
+
+  try {
+    await resend.emails.send({
+      from: RESEND_FROM,
+      to,
+      subject,
+      html
+    });
+    console.log(`[EMAIL] Sent to ${to}: ${subject}`);
+  } catch (err) {
+    console.error(`[EMAIL ERROR] Failed to send to ${to}:`, err.message);
+  }
+}
+
+/* ============================================
+   JOB PROCESSING PIPELINE
+   ============================================ */
+/**
+ * Timed sub-updates — fires progress messages at intervals during long AI calls
+ * so the user never stares at a frozen progress bar.
+ */
+function startSubUpdates(jobId, steps, intervalMs = 6000) {
+  let i = 0;
+  const timer = setInterval(() => {
+    if (i >= steps.length) { clearInterval(timer); return; }
+    updateJob(jobId, steps[i]);
+    i++;
+  }, intervalMs);
+  return timer;
+}
+
+async function processJob(jobId) {
+  const job = getJob(jobId);
+  if (!job) return;
+
+  console.log(`[PREVIEW] Job ${jobId} — analyze: ${ANALYZE_MODEL}, build: ${BUILD_MODEL}`);
+
+  try {
+    // ── Step 1: Scrape ──
+    updateJob(jobId, { status: 'processing', progress: 10, progressMessage: 'Scanning your website...', progressDetail: 'Loading your site in a real browser and capturing every element — layout, colors, fonts, images, and content.' });
+
+    const scrapeUpdates = startSubUpdates(jobId, [
+      { progress: 15, progressMessage: 'Reading your page structure...', progressDetail: 'Mapping out your navigation, headers, sections, and footer to understand the full layout.' },
+      { progress: 20, progressMessage: 'Capturing visual design...', progressDetail: 'Analyzing your color palette, typography, spacing, and imagery for the redesign.' },
+      { progress: 25, progressMessage: 'Extracting content and links...', progressDetail: 'Pulling your headlines, body text, calls-to-action, and internal links.' },
+    ], 5000);
+
+    const scraped = await scrapeWebsite(job.url, jobId, SCREENSHOTS_DIR);
+    clearInterval(scrapeUpdates);
+    updateJob(jobId, { progress: 30, progressMessage: 'Website scanned successfully', progressDetail: 'Got it. Your current site has been fully captured. Moving on to the deep analysis.', beforeScreenshot: true });
+
+    // ── Step 2: AI Analysis ──
+    updateJob(jobId, { progress: 35, progressMessage: 'Analyzing your design and conversion flow...', progressDetail: 'Our AI is reviewing your layout, copy, calls-to-action, SEO structure, and mobile experience — the same analysis a senior designer would do.' });
+
+    const analysisUpdates = startSubUpdates(jobId, [
+      { progress: 38, progressMessage: 'Evaluating mobile responsiveness...', progressDetail: 'Checking how your site looks and performs on phones and tablets — over 60% of web traffic is mobile.' },
+      { progress: 41, progressMessage: 'Reviewing SEO structure...', progressDetail: 'Analyzing your meta tags, heading hierarchy, structured data, and content organization for search engines.' },
+      { progress: 44, progressMessage: 'Scoring your calls-to-action...', progressDetail: 'Evaluating button placement, form design, and conversion paths — are visitors being guided to take action?' },
+      { progress: 47, progressMessage: 'Assessing visual hierarchy...', progressDetail: 'Looking at how your design directs attention. Good hierarchy means visitors see the right things first.' },
+      { progress: 50, progressMessage: 'Benchmarking against modern standards...', progressDetail: 'Comparing your design patterns to current best practices used by top-performing sites in your industry.' },
+      { progress: 53, progressMessage: 'Finalizing analysis report...', progressDetail: 'Compiling all findings into an upgrade strategy tailored to your specific business and audience.' },
+    ], 8000);
+
+    const analysis = await analyzeWebsite(scraped.content, { model: ANALYZE_MODEL });
+    clearInterval(analysisUpdates);
+    updateJob(jobId, { progress: 55, progressMessage: 'Analysis complete — building your upgrade strategy', progressDetail: 'Found opportunities to improve. Now writing a custom upgrade strategy for your specific business.', analysis });
+
+    // ── Step 3: AI Build ──
+    updateJob(jobId, { progress: 60, progressMessage: 'Writing custom HTML from scratch...', progressDetail: 'This isn\'t a template — our AI is writing a completely new page tailored to your brand, with modern design patterns and conversion-optimized layout.' });
+
+    const buildUpdates = startSubUpdates(jobId, [
+      { progress: 63, progressMessage: 'Crafting your new hero section...', progressDetail: 'Designing the first thing visitors see — a compelling headline, clear value proposition, and strong call-to-action.' },
+      { progress: 66, progressMessage: 'Building navigation and layout...', progressDetail: 'Creating a clean, intuitive navigation structure and responsive page layout that works on every screen size.' },
+      { progress: 69, progressMessage: 'Designing content sections...', progressDetail: 'Laying out your services, features, and key selling points in a modern, scannable format.' },
+      { progress: 72, progressMessage: 'Adding social proof and trust signals...', progressDetail: 'Incorporating testimonials, credentials, and trust elements that help convert visitors into customers.' },
+      { progress: 75, progressMessage: 'Optimizing forms and CTAs...', progressDetail: 'Designing conversion-focused contact forms and call-to-action buttons with proven placement strategies.' },
+      { progress: 78, progressMessage: 'Applying your brand colors and typography...', progressDetail: 'Matching your brand identity while modernizing the visual feel — your site, but elevated.' },
+      { progress: 81, progressMessage: 'Polishing responsive design...', progressDetail: 'Fine-tuning the layout for phones, tablets, and desktops so it looks sharp everywhere.' },
+      { progress: 83, progressMessage: 'Final code review...', progressDetail: 'Cleaning up the code, optimizing performance, and ensuring everything renders perfectly.' },
+    ], 7000);
+
+    const html = await buildUpgradedSite(analysis, { model: BUILD_MODEL });
+    clearInterval(buildUpdates);
+    console.log(`[BUILD] Job ${jobId} — generated ${html ? html.length : 0} chars of HTML (starts with: ${html ? html.substring(0, 50) : 'NULL'})`);
+    updateJob(jobId, { progress: 85, progressMessage: 'Upgrade built! Generating preview...', progressDetail: 'Your upgraded site is ready. Now capturing a screenshot so you can compare side-by-side.', generatedHtml: html });
+
+    // ── Step 4: Screenshot ──
+    updateJob(jobId, { progress: 90, progressMessage: 'Capturing your before & after screenshots...', progressDetail: 'Taking high-resolution screenshots of both versions for the side-by-side comparison.' });
+    const afterPath = path.join(SCREENSHOTS_DIR, `${jobId}-after.png`);
+    await screenshotHTML(html, afterPath);
+    updateJob(jobId, { progress: 95, progressMessage: 'Almost there — preparing your results...', progressDetail: 'Packaging everything up for the big reveal.' });
+
+    // Brief pause so user sees the 95% message before completion
+    await new Promise(r => setTimeout(r, 1500));
+    updateJob(jobId, { status: 'complete', progress: 100, progressMessage: 'Your upgrade is ready!', progressDetail: '', afterScreenshot: true });
+
+    console.log(`[PREVIEW] Job ${jobId} complete — ${analysis.businessName || job.url}`);
+
+  } catch (err) {
+    console.error(`Job ${jobId} error:`, err);
+    // Show user-friendly error — never expose raw technical details
+    const userMessage = err.message.includes('JSON')
+      ? 'We had trouble analyzing this site. Please try again — it usually works on the second attempt.'
+      : 'Something went wrong. Please try again.';
+    updateJob(jobId, {
+      status: 'error',
+      progress: 0,
+      progressMessage: userMessage,
+      error: err.message // Keep technical detail in error field for logs, but UI shows progressMessage
+    });
+  }
+}
+
+function updateJob(jobId, updates) {
+  const job = getJob(jobId);
+  if (!job) return;
+  Object.assign(job, updates);
+  saveJob(job);
+}
+
+/* ============================================
+   SERVE SCREENSHOTS FROM VOLUME (when DATA_DIR is set)
+   ============================================ */
+if (process.env.DATA_DIR) {
+  app.use('/screenshots', express.static(SCREENSHOTS_DIR));
+}
+
+/* ============================================
+   AUTO-CLEANUP: Remove previews older than 30 days
+   Runs once on startup, then every 24 hours.
+   ============================================ */
+function cleanupExpiredJobs() {
+  try {
+    const now = Date.now();
+    const files = fs.readdirSync(JOBS_DIR).filter(f => f.endsWith('.json'));
+    let cleaned = 0;
+
+    for (const file of files) {
+      const fp = path.join(JOBS_DIR, file);
+      const job = JSON.parse(fs.readFileSync(fp, 'utf8'));
+      const createdAt = new Date(job.createdAt).getTime();
+
+      if (now - createdAt > PREVIEW_TTL_MS) {
+        // Remove job file
+        fs.unlinkSync(fp);
+
+        // Remove associated screenshots
+        const jobId = job.id;
+        const beforePath = path.join(SCREENSHOTS_DIR, `${jobId}-before.png`);
+        const afterPath = path.join(SCREENSHOTS_DIR, `${jobId}-after.png`);
+        if (fs.existsSync(beforePath)) fs.unlinkSync(beforePath);
+        if (fs.existsSync(afterPath)) fs.unlinkSync(afterPath);
+
+        cleaned++;
+      }
+    }
+
+    if (cleaned > 0) {
+      console.log(`[CLEANUP] Removed ${cleaned} expired preview(s) older than ${PREVIEW_TTL_DAYS} days`);
+    }
+  } catch (err) {
+    console.error('[CLEANUP] Error:', err.message);
+  }
+}
+
+// Run cleanup on startup and every 24 hours
+cleanupExpiredJobs();
+setInterval(cleanupExpiredJobs, 24 * 60 * 60 * 1000);
+
+/* ============================================
+   404 FALLBACK
+   ============================================ */
+app.use((req, res) => {
+  res.status(404).type('html').send(`<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Not Found</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui;background:#0A0E1A;color:#F1F5F9;min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:2rem}h1{font-size:2rem;margin-bottom:1rem}p{color:#94A3B8;margin-bottom:2rem}a{color:#3B82F6;font-weight:600;text-decoration:none}</style>
+</head><body><div><h1>404</h1><p>Page not found.</p><a href="/">Go Home</a></div></body></html>`);
+});
+
+/* ============================================
+   START SERVER
+   ============================================ */
+app.listen(PORT, () => {
+  console.log(`Paul Tran Studio Upgrade Tool running on port ${PORT}`);
+  console.log(`Open ${BASE_URL} to get started`);
+});
+
+// Cleanup on exit
+process.on('SIGINT', async () => {
+  await closeBrowser();
+  process.exit(0);
+});

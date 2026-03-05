@@ -140,7 +140,7 @@
       if (data.status === 'error') {
         clearInterval(pollInterval);
         pollInterval = null;
-        showError(data.error || 'Analysis failed. Please try again.');
+        showError(data.progressMessage || 'Something went wrong. Please try again.');
       }
 
     } catch (err) {

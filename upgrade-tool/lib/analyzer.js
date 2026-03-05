@@ -9,6 +9,120 @@ const Anthropic = require('@anthropic-ai/sdk');
 const client = new Anthropic();
 
 /**
+ * Robust JSON repair — handles the most common AI JSON failures:
+ * 1. Trailing commas before } or ]
+ * 2. Unescaped control characters inside strings (newlines, tabs)
+ * 3. Truncated output (missing closing braces/brackets)
+ * 4. Single-line unescaped quotes inside strings (smart quotes → straight)
+ * 5. Unescaped backslashes
+ * 6. Markdown code fences wrapping
+ */
+function repairJson(raw) {
+  let s = raw.trim();
+
+  // Strip markdown code fences
+  if (s.startsWith('```')) {
+    s = s.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  }
+
+  // Strategy: walk through the string character by character to fix
+  // unescaped characters inside JSON string values
+  let result = '';
+  let inString = false;
+  let i = 0;
+
+  while (i < s.length) {
+    const ch = s[i];
+
+    if (!inString) {
+      if (ch === '"') {
+        inString = true;
+        result += ch;
+      } else {
+        result += ch;
+      }
+      i++;
+    } else {
+      // Inside a string
+      if (ch === '\\') {
+        // Escaped character — pass through both chars
+        if (i + 1 < s.length) {
+          result += ch + s[i + 1];
+          i += 2;
+        } else {
+          result += ch;
+          i++;
+        }
+      } else if (ch === '"') {
+        // End of string (or unescaped quote inside string)
+        // Peek ahead to see if this looks like a real string terminator
+        // Real terminators are followed by : , } ] or whitespace+one of those
+        const rest = s.substring(i + 1).trimStart();
+        if (rest.length === 0 || /^[,:\}\]\n\r]/.test(rest)) {
+          inString = false;
+          result += ch;
+        } else {
+          // Likely an unescaped quote inside the string — escape it
+          result += '\\"';
+        }
+        i++;
+      } else if (ch === '\n' || ch === '\r') {
+        // Unescaped newline inside string — replace with \\n
+        result += '\\n';
+        if (ch === '\r' && i + 1 < s.length && s[i + 1] === '\n') {
+          i++; // Skip the \n in \r\n
+        }
+        i++;
+      } else if (ch === '\t') {
+        result += '\\t';
+        i++;
+      } else if (ch.charCodeAt(0) < 32) {
+        // Other control characters — skip
+        i++;
+      } else {
+        result += ch;
+        i++;
+      }
+    }
+  }
+
+  s = result;
+
+  // Remove trailing commas before } or ]
+  s = s.replace(/,(\s*[}\]])/g, '$1');
+
+  // Close any unclosed brackets/braces (truncated output)
+  const openBraces = (s.match(/{/g) || []).length;
+  const closeBraces = (s.match(/}/g) || []).length;
+  const openBrackets = (s.match(/\[/g) || []).length;
+  const closeBrackets = (s.match(/\]/g) || []).length;
+
+  for (let j = 0; j < openBrackets - closeBrackets; j++) s += ']';
+  for (let j = 0; j < openBraces - closeBraces; j++) s += '}';
+
+  return s;
+}
+
+/**
+ * Try to parse JSON, logging the attempt. Returns parsed object or null.
+ */
+function tryParseJson(text, label) {
+  let s = text.trim();
+  // Strip markdown fences
+  if (s.startsWith('```')) {
+    s = s.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+  }
+  try {
+    const result = JSON.parse(s);
+    console.log(`[ANALYZER] JSON parse succeeded (${label})`);
+    return result;
+  } catch (err) {
+    console.log(`[ANALYZER] JSON parse failed (${label}): ${err.message}`);
+    return null;
+  }
+}
+
+/**
  * Analyze scraped website data and produce an upgrade strategy
  * @param {Object} scrapedContent — scraped website data
  * @param {Object} options
@@ -156,68 +270,39 @@ CRITICAL RULES:
 
   const text = response.content[0].text.trim();
 
-  // Parse JSON, handling potential markdown wrapping and common AI JSON errors
-  let json = text;
-  if (json.startsWith('```')) {
-    json = json.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-  }
+  // Attempt 1: Parse raw output
+  const parsed = tryParseJson(text, 'raw');
+  if (parsed) return parsed;
 
-  // Try parsing as-is first
-  try {
-    return JSON.parse(json);
-  } catch (firstError) {
-    console.log(`[ANALYZER] First JSON parse failed: ${firstError.message}`);
-    console.log(`[ANALYZER] Attempting JSON repair...`);
+  // Attempt 2: Repair and parse
+  const repaired = repairJson(text);
+  const parsedRepaired = tryParseJson(repaired, 'repaired');
+  if (parsedRepaired) return parsedRepaired;
 
-    // Common AI JSON errors: trailing commas, unescaped quotes in strings, truncated output
-    let repaired = json;
+  // Attempt 3: Retry the API call, asking it to fix its own JSON
+  console.log(`[ANALYZER] Retrying API call to fix JSON...`);
+  const retryResponse = await client.messages.create({
+    model,
+    max_tokens: 6000,
+    messages: [
+      { role: 'user', content: prompt },
+      { role: 'assistant', content: text },
+      { role: 'user', content: 'Your JSON output was malformed and could not be parsed. Please output the SAME analysis as valid JSON. Fix any syntax errors. Output ONLY the JSON object, nothing else — no explanations, no markdown.' }
+    ]
+  });
 
-    // Remove trailing commas before } or ]
-    repaired = repaired.replace(/,\s*([}\]])/g, '$1');
+  const retryText = retryResponse.content[0].text.trim();
+  const parsedRetry = tryParseJson(retryText, 'retry-raw');
+  if (parsedRetry) return parsedRetry;
 
-    // Fix unescaped newlines inside strings (replace with \\n)
-    repaired = repaired.replace(/(?<=": "(?:[^"\\]|\\.)*)(?:\r?\n)(?=(?:[^"\\]|\\.)*")/g, '\\n');
+  const retriedRepaired = repairJson(retryText);
+  const parsedRetriedRepaired = tryParseJson(retriedRepaired, 'retry-repaired');
+  if (parsedRetriedRepaired) return parsedRetriedRepaired;
 
-    // If JSON is truncated (missing closing braces), try to close it
-    const openBraces = (repaired.match(/{/g) || []).length;
-    const closeBraces = (repaired.match(/}/g) || []).length;
-    const openBrackets = (repaired.match(/\[/g) || []).length;
-    const closeBrackets = (repaired.match(/\]/g) || []).length;
-
-    // Close any unclosed brackets/braces
-    for (let i = 0; i < openBrackets - closeBrackets; i++) repaired += ']';
-    for (let i = 0; i < openBraces - closeBraces; i++) repaired += '}';
-
-    try {
-      const result = JSON.parse(repaired);
-      console.log(`[ANALYZER] JSON repair succeeded`);
-      return result;
-    } catch (secondError) {
-      console.error(`[ANALYZER] JSON repair also failed: ${secondError.message}`);
-      console.error(`[ANALYZER] Raw output (first 500 chars): ${text.substring(0, 500)}`);
-
-      // Last resort: retry the API call once
-      console.log(`[ANALYZER] Retrying API call...`);
-      const retryResponse = await client.messages.create({
-        model,
-        max_tokens: 6000,
-        messages: [
-          { role: 'user', content: prompt },
-          { role: 'assistant', content: text },
-          { role: 'user', content: 'Your JSON output was malformed and could not be parsed. Please output the SAME analysis as valid JSON. Fix any syntax errors. Output ONLY the JSON, nothing else.' }
-        ]
-      });
-
-      let retryJson = retryResponse.content[0].text.trim();
-      if (retryJson.startsWith('```')) {
-        retryJson = retryJson.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-      }
-      // Remove trailing commas
-      retryJson = retryJson.replace(/,\s*([}\]])/g, '$1');
-
-      return JSON.parse(retryJson); // If this fails, let it throw — we've tried our best
-    }
-  }
+  // All attempts failed — throw with context
+  console.error(`[ANALYZER] All JSON parse attempts failed`);
+  console.error(`[ANALYZER] Raw output (first 500 chars): ${text.substring(0, 500)}`);
+  throw new Error('JSON parse failed after repair and retry');
 }
 
 module.exports = { analyzeWebsite };
