@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Website Upgrade Tool — Paul Tran Studio</title>
-  <meta name="description" content="See your website transformed in seconds. Paste your URL, get a free AI-powered upgrade preview, then talk to Paul about making it real.">
+  <meta name="description" content="See your website transformed in seconds. Paste your URL, get a free AI-powered upgrade preview. Starting at $500.">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -23,18 +23,18 @@
 </head>
 <body>
 
-  <!-- ═══════════════ NAV ═══════════════ -->
+  <!-- NAV -->
   <nav class="nav">
     <div class="container nav__inner">
       <a href="https://paultranstudio.com" class="nav__logo">
         <span class="nav__logo-icon">P</span>
         Paul Tran Studio
       </a>
-      <a href="https://paultranstudio.com" class="nav__link">← Back to Portfolio</a>
+      <a href="https://paultranstudio.com" class="nav__link">Back to Portfolio</a>
     </div>
   </nav>
 
-  <!-- ═══════════════ HERO ═══════════════ -->
+  <!-- HERO -->
   <section class="hero" id="hero">
     <div class="container">
       <div class="hero__badge">AI-Powered Website Upgrades</div>
@@ -54,11 +54,11 @@
         </button>
       </form>
 
-      <p class="hero__note">100% free — see your upgrade in seconds</p>
+      <p class="hero__note">100% free preview — no sign-up required</p>
     </div>
   </section>
 
-  <!-- ═══════════════ PROGRESS ═══════════════ -->
+  <!-- PROGRESS -->
   <section class="progress-section hidden" id="progressSection">
     <div class="container">
       <div class="progress-card">
@@ -90,11 +90,27 @@
             <span>Generating preview</span>
           </div>
         </div>
+
+        <!-- While-you-wait social proof -->
+        <div class="progress-social" id="progressSocial">
+          <div class="progress-social__divider"></div>
+          <div class="progress-social__stats">
+            <span>13+ sites built</span>
+            <span class="progress-social__dot">·</span>
+            <span>24-hour delivery</span>
+            <span class="progress-social__dot">·</span>
+            <span>$500 flat rate</span>
+          </div>
+          <div class="progress-social__testimonial" id="progressTestimonial">
+            <p class="progress-social__quote">"Paul completely rebuilt my site — SEO, responsive design, the works. I'd work with him again in a heartbeat."</p>
+            <p class="progress-social__author">— James S., CookWithJames</p>
+          </div>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- ═══════════════ ERROR ═══════════════ -->
+  <!-- ERROR -->
   <section class="error-section hidden" id="errorSection">
     <div class="container">
       <div class="error-card">
@@ -106,7 +122,7 @@
     </div>
   </section>
 
-  <!-- ═══════════════ RESULTS ═══════════════ -->
+  <!-- RESULTS -->
   <section class="results hidden" id="resultsSection">
     <div class="container">
       <div class="results__header">
@@ -138,56 +154,71 @@
           This preview will be available for 30 days. Bookmark it or share it with your team.
         </p>
       </div>
-    </div>
-  </section>
 
-  <!-- ═══════════════ CTA / LEAD CAPTURE ═══════════════ -->
-  <section class="cta hidden" id="ctaSection">
-    <div class="container">
-      <div class="cta__card">
-        <h2 class="cta__title">Like What You See?</h2>
-        <p class="cta__sub">This is just a preview. Let's talk about making it real — a fully polished, production-ready site built by Paul, delivered in 24 hours.</p>
-
-        <form class="cta__form" id="leadForm">
-          <div class="cta__form-row">
-            <div class="cta__field">
-              <label for="leadName" class="cta__label">Your Name</label>
-              <input type="text" id="leadName" class="cta__input" placeholder="Jane Smith" required>
-            </div>
-            <div class="cta__field">
-              <label for="leadEmail" class="cta__label">Email</label>
-              <input type="email" id="leadEmail" class="cta__input" placeholder="jane@mybusiness.com" required>
-            </div>
-          </div>
-          <div class="cta__field">
-            <label for="leadPhone" class="cta__label">Phone <span class="cta__optional">(optional)</span></label>
-            <input type="tel" id="leadPhone" class="cta__input" placeholder="(555) 123-4567">
-          </div>
-          <div class="cta__field">
-            <label for="leadMessage" class="cta__label">Anything else I should know? <span class="cta__optional">(optional)</span></label>
-            <textarea id="leadMessage" class="cta__input cta__textarea" rows="3" placeholder="Budget, timeline, specific pages you need..."></textarea>
-          </div>
-          <button type="submit" class="btn btn--primary cta__submit" id="leadSubmitBtn">
-            <span class="btn__text">Book a Free Call with Paul</span>
+      <!-- Stripe CTA — Primary conversion path -->
+      <div class="results__cta">
+        <div class="results__cta-card">
+          <h3 class="results__cta-title">Ready to make it real?</h3>
+          <p class="results__cta-desc">Production-ready in 24 hours. Includes deployment, SEO, and 1 round of revisions.</p>
+          <button class="btn btn--primary btn--lg results__buy-btn" id="buyBtn">
+            <span class="btn__text">Get This Site — $500</span>
             <svg class="btn__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
           </button>
-        </form>
-
-        <p class="cta__note">No commitment. Paul will personally reach out within 24 hours to discuss your upgrade.</p>
-
-        <!-- Success state (hidden until form submits) -->
-        <div class="cta__success hidden" id="leadSuccess">
-          <div class="cta__success-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </div>
-          <h3 class="cta__success-title">You're on the list!</h3>
-          <p class="cta__success-text">Paul will reach out within 24 hours to discuss your upgrade. Check your inbox.</p>
+          <button class="btn btn--outline results__talk-btn" id="talkBtn">Talk to Paul First</button>
+          <p class="results__cta-note">Secure payment via Stripe. 100% money-back guarantee.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ═══════════════ HOW IT WORKS ═══════════════ -->
+  <!-- CTA / LEAD CAPTURE (simplified — email only) -->
+  <section class="cta hidden" id="ctaSection">
+    <div class="container">
+      <div class="cta__card">
+        <h2 class="cta__title">Have questions? Let's chat.</h2>
+        <p class="cta__sub">Drop your email and Paul will personally reach out within 24 hours. We'll also email you the preview link so you don't lose it.</p>
+
+        <form class="cta__form" id="leadForm">
+          <div class="cta__form-row cta__form-row--inline">
+            <div class="cta__field" style="flex:1;">
+              <input type="email" id="leadEmail" class="cta__input" placeholder="your@email.com" required>
+            </div>
+            <button type="submit" class="btn btn--primary cta__submit" id="leadSubmitBtn">
+              <span class="btn__text">Send Me the Details</span>
+            </button>
+          </div>
+        </form>
+
+        <p class="cta__note">No spam. Just your preview link + next steps.</p>
+
+        <!-- Success state -->
+        <div class="cta__success hidden" id="leadSuccess">
+          <div class="cta__success-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <h3 class="cta__success-title">Check your inbox!</h3>
+          <p class="cta__success-text">We've sent you the preview link and next steps. Paul will reach out within 24 hours.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PAID SUCCESS (shown when returning from Stripe) -->
+  <section class="paid-success hidden" id="paidSection">
+    <div class="container">
+      <div class="paid-success__card">
+        <div class="paid-success__icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <h2 class="paid-success__title">You're all set!</h2>
+        <p class="paid-success__text">Payment confirmed. Paul will personally review and polish your upgrade, then deliver your production-ready site within 24 hours.</p>
+        <p class="paid-success__text">Check your email for a confirmation and next steps.</p>
+        <a href="#" id="paidPreviewLink" target="_blank" class="btn btn--outline" style="margin-top:1.5rem;">View Your Preview</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
   <section class="how" id="how">
     <div class="container">
       <h2 class="how__title">How It Works</h2>
@@ -200,18 +231,18 @@
         <div class="how__step">
           <div class="how__num">2</div>
           <h3>See the Upgrade</h3>
-          <p>In under 30 seconds, see a side-by-side comparison of your current site vs. the upgrade.</p>
+          <p>In under a minute, see a side-by-side comparison of your current site vs. the AI-powered upgrade.</p>
         </div>
         <div class="how__step">
           <div class="how__num">3</div>
-          <h3>Talk to Paul</h3>
-          <p>Like the preview? Drop your info and Paul will personally reach out to discuss your upgrade.</p>
+          <h3>Get It Built</h3>
+          <p>Love the preview? Pay $500 and Paul delivers your polished, production-ready site in 24 hours.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ═══════════════ FOOTER ═══════════════ -->
+  <!-- FOOTER -->
   <footer class="footer">
     <div class="container footer__inner">
       <p>&copy; 2026 Paul Tran Studio. All rights reserved.</p>

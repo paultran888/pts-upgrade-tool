@@ -1,6 +1,6 @@
 /**
  * Paul Tran Studio — Website Upgrade Tool
- * Free preview tool + lead capture. No payments — leads book a call.
+ * Free preview + Stripe checkout + auto-email via Resend
  */
 
 const express = require('express');
@@ -12,6 +12,30 @@ const { scrapeWebsite, closeBrowser } = require('./lib/scraper');
 const { analyzeWebsite } = require('./lib/analyzer');
 const { buildUpgradedSite } = require('./lib/builder');
 const { screenshotHTML } = require('./lib/screenshoter');
+
+/* ── Stripe (optional — works without it, just hides checkout) ── */
+let stripe = null;
+const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID || '';
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+if (process.env.STRIPE_SECRET_KEY) {
+  const Stripe = require('stripe');
+  stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  console.log('[STRIPE] Initialized');
+} else {
+  console.log('[STRIPE] No STRIPE_SECRET_KEY — checkout disabled');
+}
+
+/* ── Resend (optional — works without it, just skips emails) ── */
+let resend = null;
+const RESEND_FROM = process.env.RESEND_FROM || 'Paul Tran Studio <hello@paultranstudio.com>';
+const PAUL_EMAIL = process.env.PAUL_EMAIL || 'paul@paultranstudio.com';
+if (process.env.RESEND_API_KEY) {
+  const { Resend } = require('resend');
+  resend = new Resend(process.env.RESEND_API_KEY);
+  console.log('[RESEND] Initialized');
+} else {
+  console.log('[RESEND] No RESEND_API_KEY — emails disabled');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3090;
@@ -108,6 +132,69 @@ function recentUrlMatch(url) {
 /* ============================================
    MIDDLEWARE
    ============================================ */
+// Stripe webhook needs raw body — must be BEFORE express.json()
+app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  if (!stripe || !STRIPE_WEBHOOK_SECRET) {
+    return res.status(400).json({ error: 'Stripe not configured' });
+  }
+
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('[STRIPE WEBHOOK] Signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    const jobId = session.metadata?.jobId;
+    const customerEmail = session.customer_details?.email || session.metadata?.email;
+
+    console.log(`[STRIPE] Payment received for job ${jobId} from ${customerEmail}`);
+
+    if (jobId) {
+      const job = getJob(jobId);
+      if (job) {
+        job.paid = true;
+        job.paidAt = new Date().toISOString();
+        job.customerEmail = customerEmail;
+        job.stripeSessionId = session.id;
+        job.amountPaid = session.amount_total;
+        saveJob(job);
+      }
+    }
+
+    // Notify Paul
+    await sendEmail({
+      to: PAUL_EMAIL,
+      subject: `New Payment! ${session.metadata?.businessName || 'Website Upgrade'} — $${(session.amount_total / 100).toFixed(0)}`,
+      html: `<h2>New payment received!</h2>
+        <p><strong>Customer:</strong> ${customerEmail}</p>
+        <p><strong>Business:</strong> ${session.metadata?.businessName || 'N/A'}</p>
+        <p><strong>URL:</strong> ${session.metadata?.url || 'N/A'}</p>
+        <p><strong>Amount:</strong> $${(session.amount_total / 100).toFixed(0)}</p>
+        <p><strong>Job ID:</strong> ${jobId}</p>
+        <p><a href="${BASE_URL}/api/preview/${jobId}">View Preview</a></p>`
+    });
+
+    // Send confirmation to customer
+    if (customerEmail) {
+      await sendEmail({
+        to: customerEmail,
+        subject: 'Payment Confirmed — Your Website Upgrade is Underway!',
+        html: `<h2>You're all set!</h2>
+          <p>Thanks for choosing Paul Tran Studio. Paul will personally review and polish your upgrade, then deliver your production-ready site within 24 hours.</p>
+          <p><a href="${BASE_URL}/api/preview/${jobId}">View Your Preview</a></p>
+          <p>If you have any questions, reply to this email or reach out to paul@paultranstudio.com.</p>
+          <p>— Paul Tran Studio</p>`
+      });
+    }
+  }
+
+  res.json({ received: true });
+});
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -267,27 +354,25 @@ app.get('/api/preview/:jobId', (req, res) => {
 });
 
 /* ============================================
-   API: CAPTURE LEAD
-   POST /api/lead { jobId, name, email, phone, message }
+   API: CAPTURE LEAD (simplified — email only)
+   POST /api/lead { jobId, email }
    ============================================ */
-app.post('/api/lead', (req, res) => {
-  const { jobId, name, email, phone, message } = req.body;
+app.post('/api/lead', async (req, res) => {
+  const { jobId, email } = req.body;
 
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
   }
 
   const job = jobId ? getJob(jobId) : null;
+  const businessName = job?.analysis?.businessName || null;
 
   const lead = {
     id: uuidv4().split('-')[0],
     jobId: jobId || null,
     url: job?.url || null,
-    businessName: job?.analysis?.businessName || null,
-    name: name || null,
+    businessName,
     email,
-    phone: phone || null,
-    message: message || null,
     createdAt: new Date().toISOString()
   };
 
@@ -297,15 +382,105 @@ app.post('/api/lead', (req, res) => {
 
   // Append to summary file for easy scanning
   try {
-    const summaryPath = path.join(__dirname, 'data', 'LEADS.txt');
-    const line = `NEW LEAD: ${lead.businessName || lead.url || 'Unknown'}\nName: ${lead.name}\nEmail: ${lead.email}\nPhone: ${lead.phone || 'N/A'}\nMessage: ${lead.message || 'N/A'}\nJob: ${lead.jobId || 'N/A'}\nTime: ${lead.createdAt}\n---\n`;
+    const summaryPath = path.join(DATA_DIR, 'LEADS.txt');
+    const line = `NEW LEAD: ${lead.businessName || lead.url || 'Unknown'}\nEmail: ${lead.email}\nJob: ${lead.jobId || 'N/A'}\nTime: ${lead.createdAt}\n---\n`;
     fs.appendFileSync(summaryPath, line);
   } catch (e) { /* ignore */ }
 
-  console.log(`NEW LEAD: ${lead.email} — ${lead.businessName || lead.url}`);
+  console.log(`[LEAD] ${lead.email} — ${lead.businessName || lead.url}`);
+
+  // Auto-email: Send preview link to user
+  const previewUrl = jobId ? `${BASE_URL}/api/preview/${jobId}` : null;
+  await sendEmail({
+    to: email,
+    subject: `Your Website Upgrade Preview${businessName ? ` — ${businessName}` : ''}`,
+    html: `<h2>Here's your upgrade preview!</h2>
+      ${previewUrl ? `<p><a href="${previewUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Your Preview</a></p>` : ''}
+      <p>This preview will be available for 30 days. Bookmark it or share it with your team.</p>
+      <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+      <p><strong>Ready to make it real?</strong></p>
+      <p>Paul will personally review and polish your upgrade into a production-ready site. Starting at $500, delivered in 24 hours.</p>
+      <p>Just reply to this email or <a href="${BASE_URL}">visit the upgrade tool</a> to get started.</p>
+      <p>— Paul Tran Studio</p>`
+  });
+
+  // Notify Paul
+  await sendEmail({
+    to: PAUL_EMAIL,
+    subject: `New Lead: ${businessName || lead.url || email}`,
+    html: `<h3>New lead from upgrade tool</h3>
+      <p><strong>Email:</strong> ${email}</p>
+      <p><strong>Business:</strong> ${businessName || 'N/A'}</p>
+      <p><strong>URL:</strong> ${lead.url || 'N/A'}</p>
+      <p><strong>Job:</strong> ${jobId || 'N/A'}</p>
+      ${previewUrl ? `<p><a href="${previewUrl}">View Preview</a></p>` : ''}`
+  });
 
   res.json({ success: true });
 });
+
+/* ============================================
+   API: STRIPE CHECKOUT
+   POST /api/checkout { jobId }
+   ============================================ */
+app.post('/api/checkout', async (req, res) => {
+  if (!stripe || !STRIPE_PRICE_ID) {
+    return res.status(400).json({ error: 'Payments are not yet configured. Please contact paul@paultranstudio.com to get started.' });
+  }
+
+  const { jobId } = req.body;
+  if (!jobId) {
+    return res.status(400).json({ error: 'Job ID is required' });
+  }
+
+  const job = getJob(jobId);
+  if (!job) {
+    return res.status(404).json({ error: 'Job not found' });
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
+      metadata: {
+        jobId,
+        url: job.url,
+        businessName: job.analysis?.businessName || ''
+      },
+      success_url: `${BASE_URL}?paid=1&job=${jobId}`,
+      cancel_url: `${BASE_URL}?cancelled=1&job=${jobId}`,
+    });
+
+    console.log(`[STRIPE] Checkout session created for job ${jobId}: ${session.id}`);
+    res.json({ url: session.url });
+
+  } catch (err) {
+    console.error('[STRIPE] Checkout error:', err.message);
+    res.status(500).json({ error: 'Failed to create checkout session. Please try again.' });
+  }
+});
+
+/* ============================================
+   EMAIL HELPER (Resend)
+   ============================================ */
+async function sendEmail({ to, subject, html }) {
+  if (!resend) {
+    console.log(`[EMAIL SKIPPED] No Resend configured — would have sent to ${to}: ${subject}`);
+    return;
+  }
+
+  try {
+    await resend.emails.send({
+      from: RESEND_FROM,
+      to,
+      subject,
+      html
+    });
+    console.log(`[EMAIL] Sent to ${to}: ${subject}`);
+  } catch (err) {
+    console.error(`[EMAIL ERROR] Failed to send to ${to}:`, err.message);
+  }
+}
 
 /* ============================================
    JOB PROCESSING PIPELINE

@@ -1,6 +1,6 @@
 /**
  * Paul Tran Studio — Upgrade Tool Frontend
- * Handles: URL submission, progress polling, results display, lead capture
+ * Handles: URL submission, progress polling, results display, Stripe checkout, lead capture
  */
 
 (function () {
@@ -37,10 +37,39 @@
   const leadSubmitBtn = $('#leadSubmitBtn');
   const leadSuccess = $('#leadSuccess');
 
+  const paidSection = $('#paidSection');
+  const paidPreviewLink = $('#paidPreviewLink');
+
+  const buyBtn = $('#buyBtn');
+  const talkBtn = $('#talkBtn');
+
   /* ── State ── */
   let currentJobId = null;
   let pollInterval = null;
-  const pageLoadTime = Date.now(); // Bot detection: track when page was loaded
+  const pageLoadTime = Date.now();
+
+  /* ═══════════════════════════════════════════
+     ON PAGE LOAD: Check for ?paid=1 or ?cancelled=1
+     ═══════════════════════════════════════════ */
+  (function checkReturnFromStripe() {
+    const params = new URLSearchParams(window.location.search);
+    const jobId = params.get('job');
+
+    if (params.get('paid') === '1' && jobId) {
+      // Returned from successful Stripe payment
+      currentJobId = jobId;
+      heroSection.classList.add('hidden');
+      paidSection.classList.remove('hidden');
+      paidPreviewLink.href = `/api/preview/${jobId}`;
+      // Clean URL without reload
+      window.history.replaceState({}, '', '/');
+    } else if (params.get('cancelled') === '1' && jobId) {
+      // Returned from cancelled Stripe checkout — show their results again
+      currentJobId = jobId;
+      showResults(jobId);
+      window.history.replaceState({}, '', '/');
+    }
+  })();
 
   /* ═══════════════════════════════════════════
      FORM SUBMISSION
@@ -50,7 +79,6 @@
     const url = urlInput.value.trim();
     if (!url) return;
 
-    // Honeypot: grab hidden field value (bots auto-fill it, humans don't see it)
     const hp = $('#_hp') ? $('#_hp').value : '';
 
     analyzeBtn.disabled = true;
@@ -71,7 +99,6 @@
 
       currentJobId = data.jobId;
 
-      // If server reused a cached result, skip straight to results
       if (data.reused) {
         showResults(currentJobId);
       } else {
@@ -154,13 +181,49 @@
   }
 
   /* ═══════════════════════════════════════════
+     WHILE-YOU-WAIT TESTIMONIAL ROTATION
+     ═══════════════════════════════════════════ */
+  const testimonials = [
+    { quote: '"Paul completely rebuilt my site — SEO, responsive design, the works. I\'d work with him again in a heartbeat."', author: '— James S., CookWithJames' },
+    { quote: '"Went from an outdated site to a modern, fast site in one day. The before/after was night and day."', author: '— Stein\'s Beer Garden' },
+    { quote: '"25 years of experience shows. Paul understood exactly what my business needed without me having to explain it."', author: '— Recent Client' },
+    { quote: '"I thought a quality website would take weeks and cost thousands. Paul proved me wrong on both counts."', author: '— Small Business Owner' }
+  ];
+  let testimonialIndex = 0;
+  let testimonialInterval = null;
+
+  function startTestimonialRotation() {
+    const el = $('#progressTestimonial');
+    if (!el) return;
+    testimonialInterval = setInterval(() => {
+      testimonialIndex = (testimonialIndex + 1) % testimonials.length;
+      el.style.opacity = '0';
+      setTimeout(() => {
+        el.querySelector('.progress-social__quote').textContent = testimonials[testimonialIndex].quote;
+        el.querySelector('.progress-social__author').textContent = testimonials[testimonialIndex].author;
+        el.style.opacity = '1';
+      }, 400);
+    }, 8000);
+  }
+
+  function stopTestimonialRotation() {
+    if (testimonialInterval) {
+      clearInterval(testimonialInterval);
+      testimonialInterval = null;
+    }
+  }
+
+  /* ═══════════════════════════════════════════
      VIEW SWITCHING
      ═══════════════════════════════════════════ */
+  function hideAll() {
+    [heroSection, progressSection, errorSection, resultsSection, ctaSection, paidSection].forEach(s => {
+      if (s) s.classList.add('hidden');
+    });
+  }
+
   function showProgress(url) {
-    heroSection.classList.add('hidden');
-    errorSection.classList.add('hidden');
-    resultsSection.classList.add('hidden');
-    ctaSection.classList.add('hidden');
+    hideAll();
     progressSection.classList.remove('hidden');
 
     progressUrl.textContent = url;
@@ -171,14 +234,14 @@
       s.classList.remove('active', 'done');
     });
 
+    startTestimonialRotation();
     progressSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   function showResults(jobId) {
-    progressSection.classList.add('hidden');
-    errorSection.classList.add('hidden');
+    hideAll();
+    stopTestimonialRotation();
     resultsSection.classList.remove('hidden');
-    ctaSection.classList.remove('hidden');
 
     beforeImg.src = `/screenshots/${jobId}-before.png`;
     afterImg.src = `/screenshots/${jobId}-after.png`;
@@ -188,10 +251,8 @@
   }
 
   function showError(msg) {
-    heroSection.classList.add('hidden');
-    progressSection.classList.add('hidden');
-    resultsSection.classList.add('hidden');
-    ctaSection.classList.add('hidden');
+    hideAll();
+    stopTestimonialRotation();
     errorSection.classList.remove('hidden');
 
     errorMessage.textContent = msg || 'Something went wrong. Please try again.';
@@ -203,10 +264,7 @@
   }
 
   function resetToHero() {
-    progressSection.classList.add('hidden');
-    errorSection.classList.add('hidden');
-    resultsSection.classList.add('hidden');
-    ctaSection.classList.add('hidden');
+    hideAll();
     heroSection.classList.remove('hidden');
 
     analyzeBtn.disabled = false;
@@ -220,16 +278,50 @@
   retryBtn.addEventListener('click', resetToHero);
 
   /* ═══════════════════════════════════════════
-     LEAD CAPTURE FORM
+     STRIPE CHECKOUT
+     ═══════════════════════════════════════════ */
+  buyBtn.addEventListener('click', async () => {
+    if (!currentJobId) return;
+
+    buyBtn.disabled = true;
+    buyBtn.querySelector('.btn__text').textContent = 'Redirecting to checkout...';
+
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: currentJobId })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to start checkout');
+      }
+
+      // Redirect to Stripe Checkout
+      window.location.href = data.url;
+
+    } catch (err) {
+      alert(err.message || 'Something went wrong. Please try again or contact paul@paultranstudio.com.');
+      buyBtn.disabled = false;
+      buyBtn.querySelector('.btn__text').textContent = 'Get This Site — $500';
+    }
+  });
+
+  /* "Talk to Paul First" scrolls to simplified lead form */
+  talkBtn.addEventListener('click', () => {
+    ctaSection.classList.remove('hidden');
+    ctaSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  /* ═══════════════════════════════════════════
+     LEAD CAPTURE FORM (email only)
      ═══════════════════════════════════════════ */
   leadForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const name = $('#leadName').value.trim();
     const email = $('#leadEmail').value.trim();
-    const phone = $('#leadPhone').value.trim();
-    const message = $('#leadMessage').value.trim();
-
     if (!email) return;
 
     leadSubmitBtn.disabled = true;
@@ -239,25 +331,18 @@
       const res = await fetch('/api/lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobId: currentJobId,
-          name,
-          email,
-          phone,
-          message
-        })
+        body: JSON.stringify({ jobId: currentJobId, email })
       });
 
       if (!res.ok) throw new Error('Failed to submit');
 
-      // Show success, hide form
       leadForm.classList.add('hidden');
       leadSuccess.classList.remove('hidden');
 
     } catch (err) {
       alert('Something went wrong. Please email paul@paultranstudio.com directly.');
       leadSubmitBtn.disabled = false;
-      leadSubmitBtn.querySelector('.btn__text').textContent = 'Book a Free Call with Paul';
+      leadSubmitBtn.querySelector('.btn__text').textContent = 'Send Me the Details';
     }
   });
 
