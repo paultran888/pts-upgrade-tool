@@ -592,11 +592,15 @@ async function processJob(jobId) {
 
   } catch (err) {
     console.error(`Job ${jobId} error:`, err);
+    // Show user-friendly error — never expose raw technical details
+    const userMessage = err.message.includes('JSON')
+      ? 'We had trouble analyzing this site. Please try again — it usually works on the second attempt.'
+      : 'Something went wrong. Please try again.';
     updateJob(jobId, {
       status: 'error',
       progress: 0,
-      progressMessage: 'Something went wrong. Please try again.',
-      error: err.message
+      progressMessage: userMessage,
+      error: err.message // Keep technical detail in error field for logs, but UI shows progressMessage
     });
   }
 }
