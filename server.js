@@ -365,6 +365,60 @@ app.get('/api/status/:jobId', (req, res) => {
 });
 
 /* ============================================
+   API: DEBUG — Inspect analysis + HTML diagnostics
+   GET /api/debug/:jobId
+   ============================================ */
+app.get('/api/debug/:jobId', (req, res) => {
+  const job = getJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+
+  const html = getJobHtml(req.params.jobId);
+  const analysis = job.analysis || {};
+  const copy = analysis.copy || {};
+  const strat = analysis.upgradeStrategy || {};
+  const cp = analysis.contentPreserved || {};
+
+  // Section detection in HTML
+  const sectionChecks = html ? {
+    'has_nav': /<nav[\s>]/i.test(html),
+    'has_h1': /<h1[\s>]/i.test(html),
+    'has_about': /about/i.test(html),
+    'has_services': /service|menu|feature/i.test(html),
+    'has_testimonial': /testimonial|review|gallery/i.test(html),
+    'has_form': /<form[\s>]/i.test(html),
+    'has_footer': /<footer[\s>]/i.test(html),
+    'ends_with_html': html.endsWith('</html>'),
+    'has_closing_body': html.includes('</body>'),
+  } : null;
+
+  res.json({
+    jobId: job.id,
+    status: job.status,
+    url: job.url,
+    htmlLength: html ? html.length : 0,
+    htmlTail: html ? html.substring(html.length - 300) : null,
+    sectionChecks,
+    analysisSummary: {
+      businessName: analysis.businessName,
+      heroHeadline: copy.heroHeadline,
+      heroSub: copy.heroSub,
+      aboutTextLength: copy.aboutText ? copy.aboutText.length : 0,
+      servicesCount: Array.isArray(copy.services) ? copy.services.length : 0,
+      testimonialsCount: Array.isArray(copy.testimonials) ? copy.testimonials.length : 0,
+      ctaHeading: copy.ctaHeading,
+      ctaText: copy.ctaText,
+      heroImageUrl: strat.heroImageUrl ? 'YES' : 'MISSING',
+      keyImagesCount: Array.isArray(strat.keyImages) ? strat.keyImages.length : 0,
+      phone: cp.phone || 'MISSING',
+      email: cp.email || 'MISSING',
+      address: cp.address || 'MISSING',
+      hours: cp.hours || 'MISSING',
+    },
+    fullAnalysis: analysis,
+  });
+});
+
+/* ============================================
    API: PREVIEW GENERATED HTML
    GET /api/preview/:jobId
    ============================================ */
