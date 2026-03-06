@@ -428,7 +428,10 @@ app.get('/api/preview/:jobId', (req, res) => {
     return res.status(404).send('Preview not available');
   }
   console.log(`[PREVIEW] Serving ${html.length} chars of HTML for job ${req.params.jobId}`);
-  res.type('html').send(html);
+  // Fix: Override reveal animations that hide sections (IntersectionObserver doesn't fire in iframes)
+  const revealFix = '<style>.reveal,.reveal-left,.reveal-right,[class*="reveal"]{opacity:1!important;transform:none!important;transition:none!important;}</style>';
+  const fixedHtml = html.replace('</head>', revealFix + '</head>');
+  res.type('html').send(fixedHtml);
 });
 
 /* ============================================
