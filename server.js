@@ -212,14 +212,17 @@ function saveJob(job) {
   // Store generatedHtml in a separate file to avoid JSON bloat/corruption
   const htmlContent = job.generatedHtml;
   if (htmlContent && htmlContent !== '__FILE__') {
-    // Inject reveal animation fix — force all hidden elements visible
-    const revealOverride = '\n<style>.reveal,.reveal-left,.reveal-right,.reveal--visible,[class*="reveal"]{opacity:1!important;transform:none!important;transition:none!important;visibility:visible!important;}</style>';
+    // Inject fixes: reveal animations + text contrast enforcement
+    const revealOverride = '.reveal,.reveal-left,.reveal-right,.reveal--visible,[class*="reveal"]{opacity:1!important;transform:none!important;transition:none!important;visibility:visible!important;}';
+    // Force all text to use the CSS custom properties defined in :root
+    // This catches cases where Opus hardcodes wrong colors on individual elements
+    const contrastFix = 'h1,h2,h3,h4,h5,h6{color:var(--color-text)!important;}p,li,span:not(.nav *),td,th,label,blockquote,figcaption,.description,.subtitle,.tagline{color:var(--color-text-secondary,var(--color-text))!important;}';
+    const allFixes = '\n<style>' + revealOverride + contrastFix + '</style>';
     let fixedHtml = htmlContent;
     if (htmlContent.includes('</head>')) {
-      fixedHtml = htmlContent.replace('</head>', revealOverride + '\n</head>');
+      fixedHtml = htmlContent.replace('</head>', allFixes + '\n</head>');
     } else {
-      // HTML might be truncated — append at the end
-      fixedHtml = htmlContent + revealOverride;
+      fixedHtml = htmlContent + allFixes;
     }
     const htmlPath = path.join(JOBS_DIR, `${job.id}.html`);
     fs.writeFileSync(htmlPath, fixedHtml, 'utf8');
