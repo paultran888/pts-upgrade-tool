@@ -382,6 +382,13 @@
       $('#reportBeforeImg').src = data.beforeScreenshot;
       $('#reportTeaserImg').src = data.teaserScreenshot;
       $('#reportTeaserLink').href = `/api/teaser/${data.id}`;
+    } else if (data.beforeScreenshot) {
+      // Show at least the before screenshot with a "preview coming" placeholder
+      teaserSection.classList.remove('hidden');
+      $('#reportBeforeImg').src = data.beforeScreenshot;
+      $('#reportTeaserImg').style.display = 'none';
+      $('#reportTeaserLink').href = '#';
+      $('#reportTeaserLink').style.display = 'none';
     } else {
       teaserSection.classList.add('hidden');
     }

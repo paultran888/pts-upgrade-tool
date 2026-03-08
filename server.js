@@ -657,6 +657,7 @@ async function processAnalysis(jobId) {
     } catch (teaserErr) {
       clearInterval(teaserUpdates);
       console.error(`[TEASER] Job ${jobId} teaser build failed (non-fatal):`, teaserErr.message);
+      console.error(`[TEASER] Full error:`, teaserErr.stack);
     }
 
     // Analysis complete — set status to 'analyzed' (NOT 'complete')
