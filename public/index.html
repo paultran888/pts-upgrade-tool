@@ -83,11 +83,11 @@
           </div>
           <div class="progress-step" data-step="build">
             <div class="progress-step__dot"></div>
-            <span>Building upgrade</span>
+            <span>Building preview</span>
           </div>
           <div class="progress-step" data-step="preview">
             <div class="progress-step__dot"></div>
-            <span>Generating preview</span>
+            <span>Capturing screenshots</span>
           </div>
         </div>
 
@@ -169,6 +169,28 @@
         </h3>
         <p class="report__plan-intro">Here's exactly what we'd build for you:</p>
         <ol class="report__plan-list" id="reportPlan"></ol>
+      </div>
+
+      <!-- Teaser Preview: Before / After Comparison -->
+      <div class="report__teaser hidden" id="reportTeaser">
+        <h3 class="report__teaser-title">✨ Preview Your Upgrade</h3>
+        <div class="report__teaser-compare">
+          <div class="report__teaser-side">
+            <span class="report__teaser-label">Current Site</span>
+            <img id="reportBeforeImg" src="" alt="Current website" class="report__teaser-img" />
+          </div>
+          <div class="report__teaser-side">
+            <span class="report__teaser-label report__teaser-label--new">Preview</span>
+            <img id="reportTeaserImg" src="" alt="Upgrade preview" class="report__teaser-img" />
+          </div>
+        </div>
+        <a href="#" id="reportTeaserLink" target="_blank" class="btn btn--outline report__teaser-link">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Open Interactive Preview
+        </a>
+        <div class="report__teaser-banner">
+          <p class="report__teaser-banner-text">This is just a preview of 3 sections. The full upgrade includes <strong>7+ polished sections</strong> with all your content — services, testimonials, contact forms, and more.</p>
+        </div>
       </div>
 
       <!-- Design Preview: Colors & Fonts -->

@@ -10,7 +10,7 @@ const { v4: uuidv4 } = require('uuid');
 
 const { scrapeWebsite, closeBrowser } = require('./lib/scraper');
 const { analyzeWebsite } = require('./lib/analyzer');
-const { buildUpgradedSite } = require('./lib/site-builder');
+const { buildUpgradedSite, buildTeaserSite } = require('./lib/site-builder');
 const { screenshotHTML } = require('./lib/screenshoter');
 
 /* ── Stripe (optional — works without it, just hides checkout) ── */
@@ -243,6 +243,14 @@ function getJobHtml(jobId) {
   return null;
 }
 
+function getJobTeaserHtml(jobId) {
+  const htmlPath = path.join(JOBS_DIR, `${jobId}-teaser.html`);
+  if (fs.existsSync(htmlPath)) {
+    return fs.readFileSync(htmlPath, 'utf8');
+  }
+  return null;
+}
+
 /* ============================================
    API: ANALYZE WEBSITE (Phase 1 only — cheap Sonnet call)
    ============================================ */
@@ -351,6 +359,7 @@ app.get('/api/status/:jobId', (req, res) => {
     paid: job.paid || false,
     beforeScreenshot: job.beforeScreenshot ? `/screenshots/${job.id}-before.png` : null,
     afterScreenshot: job.afterScreenshot ? `/screenshots/${job.id}-after.png` : null,
+    teaserScreenshot: job.teaserScreenshot ? `/screenshots/${job.id}-teaser.png` : null,
     error: job.error,
     createdAt: job.createdAt,
     expiresAt: job.expiresAt || null
@@ -435,6 +444,18 @@ app.get('/api/preview/:jobId', (req, res) => {
   console.log(`[PREVIEW] Serving ${html.length} chars of HTML for job ${req.params.jobId}`);
   const revealFix = '\n<style>.reveal,.reveal-left,.reveal-right,[class*="reveal"]{opacity:1!important;transform:none!important;transition:none!important;visibility:visible!important;}</style>';
   res.type('html').send(html + revealFix);
+});
+
+/* ============================================
+   API: TEASER PREVIEW HTML
+   ============================================ */
+app.get('/api/teaser/:jobId', (req, res) => {
+  const html = getJobTeaserHtml(req.params.jobId);
+  if (!html) {
+    return res.status(404).send('Teaser preview not available.');
+  }
+  console.log(`[TEASER] Serving ${html.length} chars of teaser HTML for job ${req.params.jobId}`);
+  res.type('html').send(html);
 });
 
 /* ============================================
@@ -609,17 +630,47 @@ async function processAnalysis(jobId) {
     const analysis = await analyzeWebsite(scraped.content, { model: ANALYZE_MODEL });
     clearInterval(analysisUpdates);
 
+    updateJob(jobId, { progress: 48, progressMessage: 'Analysis complete! Building your upgrade preview...', progressDetail: 'Crafting a 3-section preview of your upgraded site using AI.', analysis });
+
+    // ── Step 3: Teaser Build (Sonnet — free) ──
+    const teaserUpdates = startSubUpdates(jobId, [
+      { progress: 52, progressMessage: 'Crafting a preview of your upgrade...', progressDetail: 'Our AI is designing a modern hero section with your content.' },
+      { progress: 58, progressMessage: 'Designing your new layout...', progressDetail: 'Building a compelling preview with your brand colors and typography.' },
+      { progress: 64, progressMessage: 'Polishing the preview...', progressDetail: 'Adding responsive design and visual polish to your preview.' },
+    ], 6000);
+
+    let teaserBuilt = false;
+    try {
+      const teaserHtml = await buildTeaserSite(analysis, { model: ANALYZE_MODEL });
+      clearInterval(teaserUpdates);
+      console.log(`[TEASER] Job ${jobId} — generated ${teaserHtml ? teaserHtml.length : 0} chars of teaser HTML`);
+
+      // Save teaser HTML
+      const teaserHtmlPath = path.join(JOBS_DIR, `${jobId}-teaser.html`);
+      fs.writeFileSync(teaserHtmlPath, teaserHtml, 'utf8');
+
+      // Screenshot the teaser
+      updateJob(jobId, { progress: 68, progressMessage: 'Capturing preview screenshot...', progressDetail: 'Taking a screenshot of your upgrade preview.' });
+      const teaserScreenshotPath = path.join(SCREENSHOTS_DIR, `${jobId}-teaser.png`);
+      await screenshotHTML(teaserHtml, teaserScreenshotPath);
+      teaserBuilt = true;
+    } catch (teaserErr) {
+      clearInterval(teaserUpdates);
+      console.error(`[TEASER] Job ${jobId} teaser build failed (non-fatal):`, teaserErr.message);
+    }
+
     // Analysis complete — set status to 'analyzed' (NOT 'complete')
     // This is where we stop for free users. No Opus build yet.
     updateJob(jobId, {
       status: 'analyzed',
-      progress: 50,
+      progress: 75,
       progressMessage: 'Your analysis report is ready!',
       progressDetail: '',
-      analysis
+      analysis,
+      teaserScreenshot: teaserBuilt
     });
 
-    console.log(`[ANALYSIS] Job ${jobId} complete — ${analysis.businessName || job.url}. Awaiting payment for build.`);
+    console.log(`[ANALYSIS] Job ${jobId} complete — ${analysis.businessName || job.url}. Teaser: ${teaserBuilt}. Awaiting payment for build.`);
 
   } catch (err) {
     console.error(`Job ${jobId} analysis error:`, err);
@@ -760,6 +811,10 @@ function cleanupExpiredJobs() {
         const afterPath = path.join(SCREENSHOTS_DIR, `${jobId}-after.png`);
         if (fs.existsSync(beforePath)) fs.unlinkSync(beforePath);
         if (fs.existsSync(afterPath)) fs.unlinkSync(afterPath);
+        const teaserScreenPath = path.join(SCREENSHOTS_DIR, `${jobId}-teaser.png`);
+        if (fs.existsSync(teaserScreenPath)) fs.unlinkSync(teaserScreenPath);
+        const teaserHtmlPath = path.join(JOBS_DIR, `${jobId}-teaser.html`);
+        if (fs.existsSync(teaserHtmlPath)) fs.unlinkSync(teaserHtmlPath);
         const htmlPath = path.join(JOBS_DIR, `${jobId}.html`);
         if (fs.existsSync(htmlPath)) fs.unlinkSync(htmlPath);
         cleaned++;

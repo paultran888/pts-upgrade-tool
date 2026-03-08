@@ -172,12 +172,14 @@
         if (pct >= 25) step.classList.add('done');
         else if (pct >= 5) step.classList.add('active');
       } else if (stepName === 'analyze') {
-        if (pct >= 50) step.classList.add('done');
+        if (pct >= 48) step.classList.add('done');
         else if (pct >= 25) step.classList.add('active');
       } else if (stepName === 'build') {
-        // Not reached in analysis phase
+        if (pct >= 70) step.classList.add('done');
+        else if (pct >= 48) step.classList.add('active');
       } else if (stepName === 'preview') {
-        // Not reached in analysis phase
+        if (pct >= 75) step.classList.add('done');
+        else if (pct >= 68) step.classList.add('active');
       }
     });
   }
@@ -372,6 +374,17 @@
     const bodyFont = strategy.bodyFont || strategy.paragraphFont || 'Inter';
     $('#reportDisplayFontName').textContent = displayFont;
     $('#reportBodyFontName').textContent = bodyFont;
+
+    // Teaser preview
+    const teaserSection = $('#reportTeaser');
+    if (data.teaserScreenshot && data.beforeScreenshot) {
+      teaserSection.classList.remove('hidden');
+      $('#reportBeforeImg').src = data.beforeScreenshot;
+      $('#reportTeaserImg').src = data.teaserScreenshot;
+      $('#reportTeaserLink').href = `/api/teaser/${data.id}`;
+    } else {
+      teaserSection.classList.add('hidden');
+    }
 
     // Reset button states
     analyzeBtn.disabled = false;
