@@ -46,7 +46,7 @@
           <svg class="hero__input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
           <input type="text" id="urlInput" class="hero__input" placeholder="Enter your website URL (e.g. mybusiness.com)" autocomplete="url" required>
         </div>
-        <!-- Honeypot: hidden from humans, bots auto-fill it -->
+        <!-- Honeypot -->
         <input type="text" id="_hp" name="_hp" style="position:absolute;left:-9999px;top:-9999px;opacity:0;height:0;width:0;z-index:-1;" tabindex="-1" autocomplete="off" aria-hidden="true">
         <button type="submit" class="btn btn--primary hero__btn" id="analyzeBtn">
           <span class="btn__text">See Your Upgrade</span>
@@ -54,7 +54,7 @@
         </button>
       </form>
 
-      <p class="hero__note">100% free preview — no sign-up required</p>
+      <p class="hero__note">100% free analysis — no sign-up required</p>
     </div>
   </section>
 
@@ -122,7 +122,139 @@
     </div>
   </section>
 
-  <!-- RESULTS -->
+  <!-- ANALYSIS REPORT (shown after free analysis, before payment) -->
+  <section class="report hidden" id="reportSection">
+    <div class="container">
+      <div class="report__header">
+        <div class="report__badge">Analysis Complete</div>
+        <h2 class="report__title" id="reportTitle">Your Website Report</h2>
+        <p class="report__url" id="reportUrl"></p>
+      </div>
+
+      <div class="report__grid">
+        <!-- Score Card -->
+        <div class="report__card report__score-card">
+          <div class="report__score-badge" id="reportScoreBadge">
+            <span class="report__score-num" id="reportScoreNum">0</span>
+            <span class="report__score-label">/10</span>
+          </div>
+          <h3 class="report__score-title">Current Design Score</h3>
+          <p class="report__score-desc" id="reportScoreDesc">Your site has room for improvement.</p>
+        </div>
+
+        <!-- What's Working -->
+        <div class="report__card">
+          <h3 class="report__card-title">
+            <span class="report__icon report__icon--green">✓</span>
+            What's Working
+          </h3>
+          <ul class="report__list report__list--green" id="reportWorking"></ul>
+        </div>
+
+        <!-- What Needs Fixing -->
+        <div class="report__card">
+          <h3 class="report__card-title">
+            <span class="report__icon report__icon--red">✕</span>
+            What Needs Fixing
+          </h3>
+          <ul class="report__list report__list--red" id="reportFixing"></ul>
+        </div>
+      </div>
+
+      <!-- Upgrade Plan -->
+      <div class="report__card report__plan-card">
+        <h3 class="report__card-title">
+          <span class="report__icon report__icon--blue">⚡</span>
+          Your Upgrade Plan
+        </h3>
+        <p class="report__plan-intro">Here's exactly what we'd build for you:</p>
+        <ol class="report__plan-list" id="reportPlan"></ol>
+      </div>
+
+      <!-- Design Preview: Colors & Fonts -->
+      <div class="report__design-row">
+        <div class="report__card report__colors-card">
+          <h3 class="report__card-title">Color Palette Upgrade</h3>
+          <div class="report__palette">
+            <div class="report__palette-group">
+              <span class="report__palette-label">Current</span>
+              <div class="report__swatches" id="reportCurrentColors"></div>
+            </div>
+            <div class="report__palette-arrow">→</div>
+            <div class="report__palette-group">
+              <span class="report__palette-label">Proposed</span>
+              <div class="report__swatches" id="reportProposedColors"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="report__card report__fonts-card">
+          <h3 class="report__card-title">Typography Upgrade</h3>
+          <div class="report__font-preview">
+            <div class="report__font-sample" id="reportDisplayFont">
+              <span class="report__font-label">Display</span>
+              <span class="report__font-name" id="reportDisplayFontName">Space Grotesk</span>
+            </div>
+            <div class="report__font-sample" id="reportBodyFont">
+              <span class="report__font-label">Body</span>
+              <span class="report__font-name" id="reportBodyFontName">Inter</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="report__cta">
+        <div class="report__cta-card">
+          <h3 class="report__cta-title">Ready to see the transformation?</h3>
+          <p class="report__cta-desc">We'll build your complete upgraded website — custom HTML, modern design, optimized for conversions. Delivered production-ready in 24 hours.</p>
+          <button class="btn btn--gradient btn--lg report__buy-btn" id="reportBuyBtn">
+            <span class="btn__text">Get Your Upgrade — $500</span>
+            <svg class="btn__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </button>
+          <button class="btn btn--outline report__talk-btn" id="reportTalkBtn">Talk to Paul First</button>
+          <p class="report__cta-note">Secure payment via Stripe · 100% money-back guarantee · Delivered in 24 hours</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BUILDING (post-payment progress) -->
+  <section class="building-section hidden" id="buildingSection">
+    <div class="container">
+      <div class="progress-card">
+        <div class="progress-card__spinner"></div>
+        <h2 class="progress-card__title" id="buildingTitle">Building your upgraded website...</h2>
+        <p class="progress-card__url" id="buildingUrl"></p>
+        <div class="progress-bar">
+          <div class="progress-bar__fill" id="buildingFill" style="width: 50%"></div>
+        </div>
+        <p class="progress-card__percent" id="buildingPercent">50%</p>
+        <p class="progress-card__detail" id="buildingDetail">Payment confirmed! Our AI is now crafting your complete upgraded website.</p>
+
+        <div class="progress-steps" id="buildingSteps">
+          <div class="progress-step done" data-step="scan">
+            <div class="progress-step__dot"></div>
+            <span>Analysis complete</span>
+          </div>
+          <div class="progress-step done" data-step="analyze">
+            <div class="progress-step__dot"></div>
+            <span>Payment confirmed</span>
+          </div>
+          <div class="progress-step active" data-step="build">
+            <div class="progress-step__dot"></div>
+            <span>Building upgrade</span>
+          </div>
+          <div class="progress-step" data-step="preview">
+            <div class="progress-step__dot"></div>
+            <span>Generating preview</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESULTS (shown after payment + build complete) -->
   <section class="results hidden" id="resultsSection">
     <div class="container">
       <div class="results__header">
@@ -155,28 +287,25 @@
         </p>
       </div>
 
-      <!-- Stripe CTA — Primary conversion path -->
+      <!-- Post-build CTA -->
       <div class="results__cta">
         <div class="results__cta-card">
-          <h3 class="results__cta-title">Ready to make it real?</h3>
-          <p class="results__cta-desc">Production-ready in 24 hours. Includes deployment, SEO, and 1 round of revisions.</p>
-          <button class="btn btn--primary btn--lg results__buy-btn" id="buyBtn">
-            <span class="btn__text">Get This Site — $500</span>
-            <svg class="btn__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-          </button>
-          <button class="btn btn--outline results__talk-btn" id="talkBtn">Talk to Paul First</button>
-          <p class="results__cta-note">Secure payment via Stripe. 100% money-back guarantee.</p>
+          <div class="results__cta-icon">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <h3 class="results__cta-title">Your upgrade is built!</h3>
+          <p class="results__cta-desc">Paul will personally review and polish your site, then deliver it production-ready within 24 hours. Check your email for next steps.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- CTA / LEAD CAPTURE (simplified — email only) -->
+  <!-- CTA / LEAD CAPTURE -->
   <section class="cta hidden" id="ctaSection">
     <div class="container">
       <div class="cta__card">
         <h2 class="cta__title">Have questions? Let's chat.</h2>
-        <p class="cta__sub">Drop your email and Paul will personally reach out within 24 hours. We'll also email you the preview link so you don't lose it.</p>
+        <p class="cta__sub">Drop your email and Paul will personally reach out within 24 hours.</p>
 
         <form class="cta__form" id="leadForm">
           <div class="cta__form-row cta__form-row--inline">
@@ -189,7 +318,7 @@
           </div>
         </form>
 
-        <p class="cta__note">No spam. Just your preview link + next steps.</p>
+        <p class="cta__note">No spam. Just next steps from Paul.</p>
 
         <!-- Success state -->
         <div class="cta__success hidden" id="leadSuccess">
@@ -197,23 +326,8 @@
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
           <h3 class="cta__success-title">Check your inbox!</h3>
-          <p class="cta__success-text">We've sent you the preview link and next steps. Paul will reach out within 24 hours.</p>
+          <p class="cta__success-text">Paul will reach out within 24 hours with next steps.</p>
         </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- PAID SUCCESS (shown when returning from Stripe) -->
-  <section class="paid-success hidden" id="paidSection">
-    <div class="container">
-      <div class="paid-success__card">
-        <div class="paid-success__icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-        </div>
-        <h2 class="paid-success__title">You're all set!</h2>
-        <p class="paid-success__text">Payment confirmed. Paul will personally review and polish your upgrade, then deliver your production-ready site within 24 hours.</p>
-        <p class="paid-success__text">Check your email for a confirmation and next steps.</p>
-        <a href="#" id="paidPreviewLink" target="_blank" class="btn btn--outline" style="margin-top:1.5rem;">View Your Preview</a>
       </div>
     </div>
   </section>
@@ -230,13 +344,13 @@
         </div>
         <div class="how__step">
           <div class="how__num">2</div>
-          <h3>See the Upgrade</h3>
-          <p>In under a minute, see a side-by-side comparison of your current site vs. the AI-powered upgrade.</p>
+          <h3>Get Your Report</h3>
+          <p>In under 30 seconds, see a detailed analysis: what's working, what needs fixing, and exactly what we'd build.</p>
         </div>
         <div class="how__step">
           <div class="how__num">3</div>
           <h3>Get It Built</h3>
-          <p>Love the preview? Pay $500 and Paul delivers your polished, production-ready site in 24 hours.</p>
+          <p>Love the plan? Pay $500 and see your complete upgraded site built instantly, then delivered production-ready in 24 hours.</p>
         </div>
       </div>
     </div>
