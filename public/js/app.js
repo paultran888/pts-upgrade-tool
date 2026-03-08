@@ -365,9 +365,12 @@
 
     // Colors
     const currentColors = strategy.currentColors || strategy.existingColors || ['#333333', '#666666', '#999999', '#CCCCCC'];
-    const proposedColors = strategy.proposedColors || strategy.newColors || strategy.colorPalette || ['#0A0E1A', '#3B82F6', '#10B981', '#F1F5F9'];
-    renderSwatches('#reportCurrentColors', Array.isArray(currentColors) ? currentColors : [currentColors]);
-    renderSwatches('#reportProposedColors', Array.isArray(proposedColors) ? proposedColors : [proposedColors]);
+    const proposedRaw = strategy.proposedColors || strategy.newColors || strategy.colorPalette || ['#0A0E1A', '#3B82F6', '#10B981', '#F1F5F9'];
+    // colorPalette may be an object like {background: "#hex", primary: "#hex"} — convert to array
+    const proposedColors = Array.isArray(proposedRaw) ? proposedRaw : (typeof proposedRaw === 'object' ? Object.values(proposedRaw) : [proposedRaw]);
+    const currentColorsArr = Array.isArray(currentColors) ? currentColors : (typeof currentColors === 'object' ? Object.values(currentColors) : [currentColors]);
+    renderSwatches('#reportCurrentColors', currentColorsArr);
+    renderSwatches('#reportProposedColors', proposedColors);
 
     // Fonts
     const displayFont = strategy.displayFont || strategy.headingFont || 'Space Grotesk';
