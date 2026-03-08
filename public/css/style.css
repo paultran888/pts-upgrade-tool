@@ -756,11 +756,12 @@ button { cursor: pointer; border: none; background: none; font: inherit; color: 
 }
 .cta__optional { font-weight: 400; opacity: 0.6; }
 .cta__input {
-  width: 100%; padding: 0.75rem 1rem;
+  width: 100%; padding: 1rem 1.25rem;
+  height: 3.25rem;
   background: var(--color-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  color: var(--color-text); font-size: 0.95rem;
+  color: var(--color-text); font-size: 1rem;
   font-family: var(--font-body);
   transition: border-color var(--transition), box-shadow var(--transition);
   outline: none;
