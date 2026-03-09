@@ -311,10 +311,10 @@
     else if (score <= 8) $('#reportScoreDesc').textContent = scoreDescs.high;
     else $('#reportScoreDesc').textContent = scoreDescs.top;
 
-    // What's Working
+    // What's Working — Sonnet prompt returns "whatWorks" inside currentAssessment
     const workingList = $('#reportWorking');
     workingList.innerHTML = '';
-    const strengths = assessment.strengths || assessment.positives || [];
+    const strengths = assessment.whatWorks || assessment.strengths || assessment.positives || [];
     const workingItems = Array.isArray(strengths) ? strengths : [strengths];
     if (workingItems.length === 0 || (workingItems.length === 1 && !workingItems[0])) {
       workingList.innerHTML = '<li>Basic web presence established</li>';
@@ -324,12 +324,15 @@
       });
     }
 
-    // What Needs Fixing
+    // What Needs Fixing — Sonnet prompt returns "whatsFailing" + "wouldMakeVisitorLeave"
     const fixingList = $('#reportFixing');
     fixingList.innerHTML = '';
-    const weaknesses = assessment.weaknesses || assessment.issues || assessment.improvements || [];
-    const fixItems = Array.isArray(weaknesses) ? weaknesses : [weaknesses];
-    if (fixItems.length === 0 || (fixItems.length === 1 && !fixItems[0])) {
+    const weaknesses = assessment.whatsFailing || assessment.weaknesses || assessment.issues || assessment.improvements || [];
+    const leaveTriggersRaw = assessment.wouldMakeVisitorLeave || [];
+    const leaveTriggers = Array.isArray(leaveTriggersRaw) ? leaveTriggersRaw : [leaveTriggersRaw];
+    const allIssues = [...(Array.isArray(weaknesses) ? weaknesses : [weaknesses]), ...leaveTriggers];
+    const fixItems = allIssues.filter(Boolean);
+    if (fixItems.length === 0) {
       fixingList.innerHTML = '<li>Design could be modernized</li><li>Conversion optimization needed</li>';
     } else {
       fixItems.forEach(item => {
@@ -365,16 +368,17 @@
 
     // Colors
     const currentColors = strategy.currentColors || strategy.existingColors || ['#333333', '#666666', '#999999', '#CCCCCC'];
-    const proposedRaw = strategy.proposedColors || strategy.newColors || strategy.colorPalette || ['#0A0E1A', '#3B82F6', '#10B981', '#F1F5F9'];
+    const proposedRaw = strategy.colorPalette || strategy.proposedColors || strategy.newColors || ['#0A0E1A', '#3B82F6', '#10B981', '#F1F5F9'];
     // colorPalette may be an object like {background: "#hex", primary: "#hex"} — convert to array
     const proposedColors = Array.isArray(proposedRaw) ? proposedRaw : (typeof proposedRaw === 'object' ? Object.values(proposedRaw) : [proposedRaw]);
     const currentColorsArr = Array.isArray(currentColors) ? currentColors : (typeof currentColors === 'object' ? Object.values(currentColors) : [currentColors]);
     renderSwatches('#reportCurrentColors', currentColorsArr);
     renderSwatches('#reportProposedColors', proposedColors);
 
-    // Fonts
-    const displayFont = strategy.displayFont || strategy.headingFont || 'Space Grotesk';
-    const bodyFont = strategy.bodyFont || strategy.paragraphFont || 'Inter';
+    // Fonts — Sonnet prompt returns strategy.fonts.display / strategy.fonts.body
+    const fontsObj = strategy.fonts || {};
+    const displayFont = fontsObj.display || strategy.displayFont || strategy.headingFont || 'Space Grotesk';
+    const bodyFont = fontsObj.body || strategy.bodyFont || strategy.paragraphFont || 'Inter';
     $('#reportDisplayFontName').textContent = displayFont;
     $('#reportBodyFontName').textContent = bodyFont;
 
