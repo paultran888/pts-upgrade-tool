@@ -45,6 +45,7 @@
   let currentJobId = null;
   let pollInterval = null;
   const pageLoadTime = Date.now();
+  let previewUnlocked = false; // track if user has given email this session
 
   /* ═══════════════════════════════════════════
      ON PAGE LOAD: Check for ?paid=1 or ?cancelled=1
@@ -382,20 +383,45 @@
     $('#reportDisplayFontName').textContent = displayFont;
     $('#reportBodyFontName').textContent = bodyFont;
 
-    // Teaser preview
+    // Teaser preview — gated behind email
     const teaserSection = $('#reportTeaser');
+    const teaserGate = $('#teaserGate');
+    const teaserUnlocked = $('#teaserUnlocked');
+
     if (data.teaserScreenshot && data.beforeScreenshot) {
       teaserSection.classList.remove('hidden');
+
+      // Set images for both gated (blurred) and unlocked states
       $('#reportBeforeImg').src = data.beforeScreenshot;
       $('#reportTeaserImg').src = data.teaserScreenshot;
+      $('#reportBeforeImgUnlocked').src = data.beforeScreenshot;
+      $('#reportTeaserImgUnlocked').src = data.teaserScreenshot;
       $('#reportTeaserLink').href = `/api/teaser/${data.id}`;
+
+      if (previewUnlocked) {
+        // Already gave email this session — show unlocked
+        teaserGate.classList.add('hidden');
+        teaserUnlocked.classList.remove('hidden');
+      } else {
+        // Show gated (blurred + email form)
+        teaserGate.classList.remove('hidden');
+        teaserUnlocked.classList.add('hidden');
+      }
     } else if (data.beforeScreenshot) {
-      // Show at least the before screenshot with a "preview coming" placeholder
       teaserSection.classList.remove('hidden');
       $('#reportBeforeImg').src = data.beforeScreenshot;
       $('#reportTeaserImg').style.display = 'none';
-      $('#reportTeaserLink').href = '#';
-      $('#reportTeaserLink').style.display = 'none';
+
+      if (previewUnlocked) {
+        teaserGate.classList.add('hidden');
+        teaserUnlocked.classList.remove('hidden');
+        $('#reportBeforeImgUnlocked').src = data.beforeScreenshot;
+        $('#reportTeaserImgUnlocked').style.display = 'none';
+        $('#reportTeaserLink').style.display = 'none';
+      } else {
+        teaserGate.classList.remove('hidden');
+        teaserUnlocked.classList.add('hidden');
+      }
     } else {
       teaserSection.classList.add('hidden');
     }
@@ -556,6 +582,50 @@
       leadSubmitBtn.querySelector('.btn__text').textContent = 'Send Me the Details';
     }
   });
+
+  /* ═══════════════════════════════════════════
+     TEASER EMAIL GATE
+     ═══════════════════════════════════════════ */
+  const teaserGateForm = $('#teaserGateForm');
+  if (teaserGateForm) {
+    teaserGateForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = $('#teaserGateEmail').value.trim();
+      if (!email) return;
+
+      const gateBtn = $('#teaserGateBtn');
+      gateBtn.disabled = true;
+      gateBtn.querySelector('.btn__text').textContent = 'Unlocking...';
+
+      try {
+        await fetch('/api/lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jobId: currentJobId, email, source: 'teaser-gate' })
+        });
+
+        // Mark as unlocked for this session
+        previewUnlocked = true;
+
+        // Swap gate for unlocked content
+        const teaserGate = $('#teaserGate');
+        const teaserUnlockedEl = $('#teaserUnlocked');
+
+        teaserGate.classList.add('hidden');
+        teaserUnlockedEl.classList.remove('hidden');
+
+        // Scroll to the preview
+        teaserUnlockedEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      } catch (err) {
+        // Even if API fails, still unlock — don't punish the user
+        previewUnlocked = true;
+        $('#teaserGate').classList.add('hidden');
+        $('#teaserUnlocked').classList.remove('hidden');
+      }
+    });
+  }
 
   /* ═══════════════════════════════════════════
      SMOOTH REVEAL ANIMATIONS

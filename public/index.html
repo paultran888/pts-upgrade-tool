@@ -4,12 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Website Upgrade Tool — Paul Tran Studio</title>
-  <meta name="description" content="Embarrassed to share your website? Our AI scans your site, shows what's costing you customers, and builds a modern redesign — in seconds. Free analysis, no sign-up.">
-
-  <!-- OG Tags -->
-  <meta property="og:title" content="Your Website Is Losing You Customers — See the Fix in 30 Seconds">
-  <meta property="og:description" content="Free AI-powered website analysis. See what's broken, what's costing you business, and get a live preview of your upgrade.">
-  <meta property="og:type" content="website">
+  <meta name="description" content="See your website transformed in seconds. Paste your URL, get a free AI-powered upgrade preview. Starting at $500.">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -35,19 +30,16 @@
         <span class="nav__logo-icon">P</span>
         Paul Tran Studio
       </a>
-      <div class="nav__links">
-        <a href="/audit" class="nav__link">Free Audit</a>
-        <a href="https://paultranstudio.com" class="nav__link">Portfolio</a>
-      </div>
+      <a href="https://paultranstudio.com" class="nav__link">Back to Portfolio</a>
     </div>
   </nav>
 
-  <!-- HERO — Symptom-First Copy -->
+  <!-- HERO -->
   <section class="hero" id="hero">
     <div class="container">
-      <div class="hero__badge">The Rapid Redesign Method&trade;</div>
-      <h1 class="hero__title">Your Website Is <span class="hero__gradient">Losing You Customers</span></h1>
-      <p class="hero__sub">Outdated design. Slow load times. No clear call-to-action. Visitors land on your site, cringe, and leave — taking their money to your competitor.<br><br><strong style="color: var(--color-text);">Paste your URL and see exactly what's broken — plus a live preview of the fix.</strong></p>
+      <div class="hero__badge">AI-Powered Website Upgrades</div>
+      <h1 class="hero__title">See Your Website<br><span class="hero__gradient">Transformed</span> in Seconds</h1>
+      <p class="hero__sub">Paste your URL below. Our AI analyzes your current site, then builds a modern, conversion-optimized upgrade — instantly.</p>
 
       <form class="hero__form" id="analyzeForm">
         <div class="hero__input-wrap">
@@ -57,36 +49,12 @@
         <!-- Honeypot -->
         <input type="text" id="_hp" name="_hp" style="position:absolute;left:-9999px;top:-9999px;opacity:0;height:0;width:0;z-index:-1;" tabindex="-1" autocomplete="off" aria-hidden="true">
         <button type="submit" class="btn btn--primary hero__btn" id="analyzeBtn">
-          <span class="btn__text">Show Me What's Wrong</span>
+          <span class="btn__text">See Your Upgrade</span>
           <svg class="btn__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
         </button>
       </form>
 
-      <p class="hero__note">100% free analysis — no sign-up required · Takes 30 seconds</p>
-    </div>
-  </section>
-
-  <!-- PAIN POINTS — speaks to symptoms -->
-  <section class="symptoms" id="symptoms">
-    <div class="container">
-      <h2 class="symptoms__title">Sound familiar?</h2>
-      <div class="symptoms__grid">
-        <div class="symptoms__card">
-          <div class="symptoms__icon">&#128556;</div>
-          <h3>You're embarrassed to share your URL</h3>
-          <p>You hand out business cards but secretly hope nobody visits your site. It doesn't reflect the quality of your actual work.</p>
-        </div>
-        <div class="symptoms__card">
-          <div class="symptoms__icon">&#128680;</div>
-          <h3>You're getting traffic but no calls</h3>
-          <p>People find you on Google, land on your site, and leave in seconds. You know something's wrong but can't pinpoint what.</p>
-        </div>
-        <div class="symptoms__card">
-          <div class="symptoms__icon">&#128176;</div>
-          <h3>You've been quoted $5K+ for a redesign</h3>
-          <p>Agencies want thousands of dollars and 6-8 weeks. You need something that works now, at a price that makes sense.</p>
-        </div>
-      </div>
+      <p class="hero__note">100% free analysis — no sign-up required</p>
     </div>
   </section>
 
@@ -128,9 +96,9 @@
           <div class="progress-social__divider"></div>
           <div class="progress-social__stats">
             <span>13+ sites built</span>
-            <span class="progress-social__dot">&middot;</span>
+            <span class="progress-social__dot">·</span>
             <span>24-hour delivery</span>
-            <span class="progress-social__dot">&middot;</span>
+            <span class="progress-social__dot">·</span>
             <span>$500 flat rate</span>
           </div>
           <div class="progress-social__testimonial" id="progressTestimonial">
@@ -146,7 +114,7 @@
   <section class="error-section hidden" id="errorSection">
     <div class="container">
       <div class="error-card">
-        <div class="error-card__icon">&#10007;</div>
+        <div class="error-card__icon">✕</div>
         <h2 class="error-card__title">Something went wrong</h2>
         <p class="error-card__message" id="errorMessage">We couldn't analyze this website. Please try again.</p>
         <button class="btn btn--primary" id="retryBtn">Try Again</button>
@@ -159,7 +127,7 @@
     <div class="container">
       <div class="report__header">
         <div class="report__badge">Analysis Complete</div>
-        <h2 class="report__title" id="reportTitle">Here's What's Costing You Customers</h2>
+        <h2 class="report__title" id="reportTitle">Your Website Report</h2>
         <p class="report__url" id="reportUrl"></p>
       </div>
 
@@ -177,7 +145,7 @@
         <!-- What's Working -->
         <div class="report__card">
           <h3 class="report__card-title">
-            <span class="report__icon report__icon--green">&#10003;</span>
+            <span class="report__icon report__icon--green">✓</span>
             What's Working
           </h3>
           <ul class="report__list report__list--green" id="reportWorking"></ul>
@@ -186,42 +154,79 @@
         <!-- What Needs Fixing -->
         <div class="report__card">
           <h3 class="report__card-title">
-            <span class="report__icon report__icon--red">&#10007;</span>
-            What's Costing You Money
+            <span class="report__icon report__icon--red">✕</span>
+            What Needs Fixing
           </h3>
           <ul class="report__list report__list--red" id="reportFixing"></ul>
         </div>
       </div>
 
-      <!-- Teaser Preview: Before / After Comparison -->
+      <!-- Teaser Preview: Before / After Comparison (GATED behind email) -->
       <div class="report__teaser hidden" id="reportTeaser">
-        <h3 class="report__teaser-title">&#10024; Here's What the Fix Looks Like</h3>
-        <div class="report__teaser-compare">
-          <div class="report__teaser-side">
-            <span class="report__teaser-label">Current Site</span>
-            <img id="reportBeforeImg" src="" alt="Current website" class="report__teaser-img" />
+        <h3 class="report__teaser-title">✨ Preview Your Upgrade</h3>
+
+        <!-- EMAIL GATE — covers the preview until email is captured -->
+        <div class="teaser-gate" id="teaserGate">
+          <div class="teaser-gate__blurred">
+            <div class="report__teaser-compare">
+              <div class="report__teaser-side">
+                <span class="report__teaser-label">Current Site</span>
+                <img id="reportBeforeImg" src="" alt="Current website" class="report__teaser-img" />
+              </div>
+              <div class="report__teaser-side">
+                <span class="report__teaser-label report__teaser-label--new">Preview</span>
+                <img id="reportTeaserImg" src="" alt="Upgrade preview" class="report__teaser-img" />
+              </div>
+            </div>
           </div>
-          <div class="report__teaser-side">
-            <span class="report__teaser-label report__teaser-label--new">Your Upgrade</span>
-            <img id="reportTeaserImg" src="" alt="Upgrade preview" class="report__teaser-img" />
+          <div class="teaser-gate__overlay">
+            <div class="teaser-gate__card">
+              <div class="teaser-gate__icon">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <h4 class="teaser-gate__title">Your preview is ready</h4>
+              <p class="teaser-gate__desc">Enter your email to unlock the before &amp; after comparison and interactive preview.</p>
+              <form class="teaser-gate__form" id="teaserGateForm">
+                <input type="email" id="teaserGateEmail" class="teaser-gate__input" placeholder="you@company.com" required />
+                <button type="submit" class="btn btn--gradient teaser-gate__btn" id="teaserGateBtn">
+                  <span class="btn__text">Unlock Preview</span>
+                </button>
+              </form>
+              <p class="teaser-gate__fine">No spam. Just your preview link and one follow-up.</p>
+            </div>
           </div>
         </div>
-        <a href="#" id="reportTeaserLink" target="_blank" class="btn btn--outline report__teaser-link">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          Open Interactive Preview
-        </a>
+
+        <!-- UNLOCKED state — shown after email capture -->
+        <div class="teaser-unlocked hidden" id="teaserUnlocked">
+          <div class="report__teaser-compare">
+            <div class="report__teaser-side">
+              <span class="report__teaser-label">Current Site</span>
+              <img id="reportBeforeImgUnlocked" src="" alt="Current website" class="report__teaser-img" />
+            </div>
+            <div class="report__teaser-side">
+              <span class="report__teaser-label report__teaser-label--new">Preview</span>
+              <img id="reportTeaserImgUnlocked" src="" alt="Upgrade preview" class="report__teaser-img" />
+            </div>
+          </div>
+          <a href="#" id="reportTeaserLink" target="_blank" class="btn btn--outline report__teaser-link">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Open Interactive Preview
+          </a>
+        </div>
+
         <div class="report__teaser-banner">
-          <p class="report__teaser-banner-text">This is a preview of 3 sections. The full upgrade includes <strong>7+ polished sections</strong> — services, testimonials, contact forms, and more — all built with your real content.</p>
+          <p class="report__teaser-banner-text">This is just a preview of 3 sections. The full upgrade includes <strong>7+ polished sections</strong> with all your content — services, testimonials, contact forms, and more.</p>
         </div>
       </div>
 
       <!-- Upgrade Plan -->
       <div class="report__card report__plan-card">
         <h3 class="report__card-title">
-          <span class="report__icon report__icon--blue">&#9889;</span>
-          Your Rapid Redesign Plan
+          <span class="report__icon report__icon--blue">⚡</span>
+          Your Upgrade Plan
         </h3>
-        <p class="report__plan-intro">Here's exactly what we'd fix — so you stop losing visitors:</p>
+        <p class="report__plan-intro">Here's exactly what we'd build for you:</p>
         <ol class="report__plan-list" id="reportPlan"></ol>
       </div>
 
@@ -234,7 +239,7 @@
               <span class="report__palette-label">Current</span>
               <div class="report__swatches" id="reportCurrentColors"></div>
             </div>
-            <div class="report__palette-arrow">&rarr;</div>
+            <div class="report__palette-arrow">→</div>
             <div class="report__palette-group">
               <span class="report__palette-label">Proposed</span>
               <div class="report__swatches" id="reportProposedColors"></div>
@@ -257,11 +262,11 @@
         </div>
       </div>
 
-      <!-- CTA — Objection-handling copy -->
+      <!-- CTA -->
       <div class="report__cta">
         <div class="report__cta-card">
-          <h3 class="report__cta-title">Stop losing customers to a bad website</h3>
-          <p class="report__cta-desc">Every day your old site is live, visitors are bouncing. We'll build your complete upgraded website — custom HTML, modern design, optimized for conversions — and deliver it production-ready in 24 hours. Not 6-8 weeks. Not $5,000+.</p>
+          <h3 class="report__cta-title">Ready to see the transformation?</h3>
+          <p class="report__cta-desc">We'll build your complete upgraded website — custom HTML, modern design, optimized for conversions. Delivered production-ready in 24 hours.</p>
           <button class="btn btn--gradient btn--lg report__buy-btn" id="reportBuyBtn">
             <span class="btn__text">Get Your Upgrade — $500</span>
             <svg class="btn__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
@@ -386,67 +391,26 @@
     </div>
   </section>
 
-  <!-- HOW IT WORKS — reframed as "The Rapid Redesign Method" -->
+  <!-- HOW IT WORKS -->
   <section class="how" id="how">
     <div class="container">
-      <h2 class="how__title">The Rapid Redesign Method&trade;</h2>
-      <p class="how__subtitle">Traditional agencies charge $5,000+ and take 6-8 weeks. Here's how we do it in 24 hours for $500.</p>
+      <h2 class="how__title">How It Works</h2>
       <div class="how__grid">
         <div class="how__step">
           <div class="how__num">1</div>
-          <h3>We Diagnose the Problem</h3>
-          <p>Paste your URL. Our AI scans your design, content, speed, and conversion signals — then shows you exactly what's driving visitors away.</p>
+          <h3>Paste Your URL</h3>
+          <p>Enter your current website address. Our AI scans your design, content, and structure.</p>
         </div>
         <div class="how__step">
           <div class="how__num">2</div>
-          <h3>You See the Fix — Free</h3>
-          <p>In 30 seconds, see a side-by-side preview: your current site vs. the AI-powered upgrade. No commitment, no sign-up required.</p>
+          <h3>Get Your Report</h3>
+          <p>In under 30 seconds, see a detailed analysis: what's working, what needs fixing, and exactly what we'd build.</p>
         </div>
         <div class="how__step">
           <div class="how__num">3</div>
-          <h3>We Build It in 24 Hours</h3>
-          <p>Love what you see? Pay $500 and get your complete upgraded site built and delivered production-ready. No surprises, no scope creep.</p>
+          <h3>Get It Built</h3>
+          <p>Love the plan? Pay $500 and see your complete upgraded site built instantly, then delivered production-ready in 24 hours.</p>
         </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- OBJECTION BUSTER -->
-  <section class="objections" id="objections">
-    <div class="container">
-      <h2 class="objections__title">Why this works</h2>
-      <div class="objections__grid">
-        <div class="objections__item">
-          <h3>&#9889; Speed</h3>
-          <p>AI does in 30 seconds what a designer takes weeks to do. Your time from "I need a new site" to "here's a live preview" is under a minute.</p>
-        </div>
-        <div class="objections__item">
-          <h3>&#128176; Price</h3>
-          <p>$500 flat. No hourly billing, no hidden fees, no "we need to add that to the scope." You see the preview before you pay a cent.</p>
-        </div>
-        <div class="objections__item">
-          <h3>&#128170; Quality</h3>
-          <p>Paul personally reviews every build before delivery. You get AI speed with human taste — not a generic template.</p>
-        </div>
-        <div class="objections__item">
-          <h3>&#128737; Guarantee</h3>
-          <p>100% money-back guarantee. If you don't love it, you don't pay. The preview is free, so you know exactly what you're getting before you commit.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- FINAL CTA -->
-  <section class="final-cta" id="finalCta">
-    <div class="container">
-      <div class="final-cta__card">
-        <h2 class="final-cta__title">Every day your old website is live, you're losing customers</h2>
-        <p class="final-cta__desc">It takes 30 seconds to see what's broken. The analysis is free.</p>
-        <a href="#hero" class="btn btn--gradient btn--lg final-cta__btn">
-          <span class="btn__text">Analyze My Website — Free</span>
-          <svg class="btn__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-        </a>
-        <p class="final-cta__note">Or start with a <a href="/audit" style="color: var(--color-primary); text-decoration: underline;">free website audit</a> to see your score.</p>
       </div>
     </div>
   </section>
@@ -455,10 +419,7 @@
   <footer class="footer">
     <div class="container footer__inner">
       <p>&copy; 2026 Paul Tran Studio. All rights reserved.</p>
-      <div class="footer__links">
-        <a href="/audit" class="footer__link">Free Audit</a>
-        <a href="https://paultranstudio.com" class="footer__link">paultranstudio.com</a>
-      </div>
+      <a href="https://paultranstudio.com" class="footer__link">paultranstudio.com</a>
     </div>
   </footer>
 

@@ -523,7 +523,7 @@ app.get('/api/teaser/:jobId', (req, res) => {
    API: CAPTURE LEAD
    ============================================ */
 app.post('/api/lead', async (req, res) => {
-  const { jobId, email } = req.body;
+  const { jobId, email, source } = req.body;
 
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
@@ -538,6 +538,7 @@ app.post('/api/lead', async (req, res) => {
     url: job?.url || null,
     businessName,
     email,
+    source: source || 'talk-to-paul',
     createdAt: new Date().toISOString()
   };
 
@@ -546,11 +547,11 @@ app.post('/api/lead', async (req, res) => {
 
   try {
     const summaryPath = path.join(DATA_DIR, 'LEADS.txt');
-    const line = `NEW LEAD: ${lead.businessName || lead.url || 'Unknown'}\nEmail: ${lead.email}\nJob: ${lead.jobId || 'N/A'}\nTime: ${lead.createdAt}\n---\n`;
+    const line = `NEW LEAD [${lead.source}]: ${lead.businessName || lead.url || 'Unknown'}\nEmail: ${lead.email}\nJob: ${lead.jobId || 'N/A'}\nTime: ${lead.createdAt}\n---\n`;
     fs.appendFileSync(summaryPath, line);
   } catch (e) { /* ignore */ }
 
-  console.log(`[LEAD] ${lead.email} — ${lead.businessName || lead.url}`);
+  console.log(`[LEAD][${lead.source}] ${lead.email} — ${lead.businessName || lead.url}`);
 
   // Auto-email to user
   const previewUrl = (jobId && job?.status === 'complete') ? `${BASE_URL}/api/preview/${jobId}` : null;
