@@ -172,17 +172,17 @@ function showResults(data) {
   const summary = document.getElementById('score-summary');
 
   if (score >= 80) {
-    headline.textContent = 'Looking good!';
-    summary.textContent = `Your site scores ${score}/100. There are still a few things to improve, but you're ahead of most small business websites.`;
+    headline.textContent = 'Your site is in good shape';
+    summary.textContent = `Your site scores ${score}/100 — you're ahead of most small business websites. A few tweaks below could push you even further ahead of competitors.`;
   } else if (score >= 60) {
-    headline.textContent = 'Decent, but leaving money on the table';
-    summary.textContent = `Your site scores ${score}/100. You're doing some things right, but the issues below are costing you visitors and customers.`;
+    headline.textContent = 'You\'re leaving money on the table';
+    summary.textContent = `Your site scores ${score}/100. The foundation is there, but the issues below are silently driving away visitors who would otherwise become customers. Every day these stay unfixed, you're losing potential revenue.`;
   } else if (score >= 40) {
-    headline.textContent = 'Your website needs work';
-    summary.textContent = `Your site scores ${score}/100. Several critical issues are hurting your visibility and driving potential customers away.`;
+    headline.textContent = 'Your website is actively losing you customers';
+    summary.textContent = `Your site scores ${score}/100. Multiple critical issues are driving visitors away before they ever learn about your business. If you're getting 100 visitors a day, many are leaving within seconds because of the problems below.`;
   } else {
-    headline.textContent = 'Your website is holding you back';
-    summary.textContent = `Your site scores ${score}/100. Major issues across multiple categories are likely costing you significant business.`;
+    headline.textContent = 'Your website is working against you';
+    summary.textContent = `Your site scores ${score}/100. Right now, your website is doing more harm than good — visitors are leaving with a worse impression than if they'd never found you. The issues below need urgent attention.`;
   }
 
   // Build findings grid
