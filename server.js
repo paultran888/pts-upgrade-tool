@@ -12,6 +12,7 @@ const { scrapeWebsite, closeBrowser } = require('./lib/scraper');
 const { analyzeWebsite } = require('./lib/analyzer');
 const { buildUpgradedSite, buildTeaserSite } = require('./lib/site-builder');
 const { screenshotHTML } = require('./lib/screenshoter');
+const { auditWebsite } = require('./lib/auditor');
 
 /* ── Stripe (optional — works without it, just hides checkout) ── */
 let stripe = null;
@@ -250,6 +251,66 @@ function getJobTeaserHtml(jobId) {
   }
   return null;
 }
+
+/* ============================================
+   API: QUICK AUDIT (No AI — fast, lightweight)
+   ============================================ */
+const AUDIT_RATE_PER_IP = parseInt(process.env.AUDIT_RATE_PER_IP, 10) || 10;
+const auditIpLog = new Map();
+
+function countTodayAudits(ip) {
+  if (!auditIpLog.has(ip)) return 0;
+  const dayStart = new Date(todayKey()).getTime();
+  return auditIpLog.get(ip).filter(ts => ts >= dayStart).length;
+}
+
+app.post('/api/audit', async (req, res) => {
+  const { url, _hp, _t } = req.body;
+
+  if (!url) return res.status(400).json({ error: 'URL is required' });
+  if (_hp) return res.status(400).json({ error: 'Invalid request' });
+  if (_t && (Date.now() - parseInt(_t, 10)) < MIN_SUBMIT_TIME_MS) {
+    return res.status(429).json({ error: 'Please wait a moment before submitting.' });
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url.startsWith('http') ? url : `https://${url}`);
+  } catch (e) {
+    return res.status(400).json({ error: 'Invalid URL' });
+  }
+
+  const hostname = parsedUrl.hostname.toLowerCase();
+  const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', 'example.com', 'test.com'];
+  if (blockedHosts.some(h => hostname === h) || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+    return res.status(400).json({ error: 'Please enter a real website URL' });
+  }
+
+  resetDailyCountIfNeeded();
+  const ip = getIp(req);
+
+  if (countTodayAudits(ip) >= AUDIT_RATE_PER_IP) {
+    return res.status(429).json({ error: `You've used all ${AUDIT_RATE_PER_IP} free audits for today. Come back tomorrow!` });
+  }
+
+  // Track this audit
+  if (!auditIpLog.has(ip)) auditIpLog.set(ip, []);
+  auditIpLog.get(ip).push(Date.now());
+
+  console.log(`[AUDIT] Starting audit for ${parsedUrl.href} (IP: ${ip})`);
+
+  try {
+    const result = await auditWebsite(parsedUrl.href);
+    console.log(`[AUDIT] Complete: ${parsedUrl.href} — Score: ${result.score}/100`);
+    res.json(result);
+  } catch (err) {
+    console.error(`[AUDIT] Failed for ${parsedUrl.href}:`, err.message);
+    const userMessage = err.message.includes('timeout') || err.message.includes('Timeout')
+      ? 'This site took too long to load. It may be down or blocking our scanner.'
+      : 'We couldn\'t reach this website. Please check the URL and try again.';
+    res.status(500).json({ error: userMessage });
+  }
+});
 
 /* ============================================
    API: ANALYZE WEBSITE (Phase 1 only — cheap Sonnet call)
@@ -832,6 +893,13 @@ function cleanupExpiredJobs() {
 
 cleanupExpiredJobs();
 setInterval(cleanupExpiredJobs, 24 * 60 * 60 * 1000);
+
+/* ============================================
+   SERVE AUDIT PAGE
+   ============================================ */
+app.get('/audit', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'audit.html'));
+});
 
 /* ============================================
    404 FALLBACK
