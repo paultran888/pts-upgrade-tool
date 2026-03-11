@@ -349,7 +349,6 @@ app.post('/api/analyze', (req, res) => {
 
   resetDailyCountIfNeeded();
   const ip = getIp(req);
-
   const isAdmin = ADMIN_IPS.includes(ip);
 
   if (!isAdmin && globalDailyCount >= GLOBAL_DAILY_CAP) {
@@ -534,7 +533,26 @@ app.post('/api/lead', async (req, res) => {
   }
 
   const job = jobId ? getJob(jobId) : null;
-  const businessName = job?.analysis?.businessName || null;
+  // Try to extract business name from multiple sources
+  let businessName = job?.analysis?.businessName || null;
+  if (!businessName && auditData?.summary) {
+    // Pull from audit page title or H1
+    const rawTitle = auditData.summary.title || auditData.summary.h1 || '';
+    // Clean up: strip common suffixes like "| Home", "- Welcome", etc.
+    businessName = rawTitle.replace(/\s*[\|\-–—]\s*(Home|Welcome|Homepage|Main|Official Site|Official Website)$/i, '').trim() || null;
+  }
+  if (!businessName && (auditUrl || job?.url)) {
+    // Fallback: extract from domain name (e.g. "pizzettanapoletana.com" → "Pizzetta Napoletana")
+    try {
+      const hostname = new URL(auditUrl || job.url).hostname.replace(/^www\./, '');
+      const domainName = hostname.split('.')[0];
+      // Capitalize and split camelCase or hyphens
+      businessName = domainName
+        .replace(/[-_]/g, ' ')
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/\b\w/g, c => c.toUpperCase());
+    } catch (e) { /* ignore */ }
+  }
 
   const lead = {
     id: uuidv4().split('-')[0],
@@ -585,7 +603,7 @@ app.post('/api/lead', async (req, res) => {
   await sendEmail({
     to: PAUL_EMAIL,
     subject: `New Lead [${source || 'unknown'}]: ${businessName || lead.url || email}${auditScore ? ` (Score: ${auditScore})` : ''}`,
-    html: buildNotificationEmail({ email, businessName, url: lead.url, source, auditScore, jobId, previewUrl })
+    html: buildNotificationEmail({ email, businessName, url: lead.url, source, auditScore, auditData, jobId, previewUrl })
   });
 
   res.json({ success: true });
@@ -594,9 +612,13 @@ app.post('/api/lead', async (req, res) => {
 /**
  * Build a rich HTML email with full audit results.
  */
-function buildNotificationEmail({ email, businessName, url, source, auditScore, jobId, previewUrl }) {
+function buildNotificationEmail({ email, businessName, url, source, auditScore, auditData, jobId, previewUrl }) {
   const sourceLabel = source === 'audit' ? '🔍 Free Audit' : '⚡ Upgrade Tool';
   const sourceColor = source === 'audit' ? '#3B82F6' : '#10B981';
+  const now = new Date();
+  const timestamp = now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+
+  // Score badge
   let scoreBadge = '';
   if (auditScore) {
     let sc = '#EF4444';
@@ -608,6 +630,39 @@ function buildNotificationEmail({ email, businessName, url, source, auditScore, 
       <div style="font-size:12px;color:#94a3b8;margin-top:4px">Audit Score</div>
     </div>`;
   }
+
+  // Top failing items (up to 3)
+  let failuresHtml = '';
+  if (auditData?.failing && auditData.failing.length > 0) {
+    const topFails = auditData.failing.slice(0, 3);
+    const failRows = topFails.map(f => {
+      const lost = f.maxPoints - f.points;
+      return `<tr><td style="padding:6px 0;color:#f87171;font-size:13px">✗ ${f.label} <span style="color:#64748b;font-size:11px">(−${lost}pts)</span></td></tr>`;
+    }).join('');
+    const totalFailing = auditData.failing.length;
+    failuresHtml = `
+    <div style="margin-top:20px;background:#0f172a;border-radius:8px;padding:16px 20px">
+      <div style="font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Top Issues (${totalFailing} total)</div>
+      <table width="100%" cellpadding="0" cellspacing="0">${failRows}</table>
+      ${totalFailing > 3 ? `<div style="color:#64748b;font-size:11px;margin-top:4px">+ ${totalFailing - 3} more issues</div>` : ''}
+    </div>`;
+  }
+
+  // Action buttons: Reply to lead + Fix Everything link
+  const replySubject = encodeURIComponent(`Re: Your website audit${businessName ? ` — ${businessName}` : ''}`);
+  const replyBody = encodeURIComponent(`Hi,\n\nI saw you ran an audit on ${url || 'your website'}${auditScore ? ` and scored ${auditScore}/100` : ''}. I'd love to help you improve that.\n\n`);
+  const fixUrl = url ? `${BASE_URL}?url=${encodeURIComponent(url)}` : '';
+
+  let actionButtons = `<div style="text-align:center;margin-top:24px">
+    <a href="mailto:${email}?subject=${replySubject}&body=${replyBody}" style="display:inline-block;background:#10B981;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;margin:4px">Reply to Lead →</a>`;
+  if (fixUrl) {
+    actionButtons += `\n    <a href="${fixUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;margin:4px">See Their Upgrade →</a>`;
+  }
+  if (previewUrl) {
+    actionButtons += `\n    <a href="${previewUrl}" style="display:inline-block;background:#6366F1;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px;margin:4px">View Preview →</a>`;
+  }
+  actionButtons += `\n  </div>`;
+
   return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:32px 16px">
@@ -626,20 +681,23 @@ function buildNotificationEmail({ email, businessName, url, source, auditScore, 
       </td></tr>
       <tr><td style="padding:10px 0;border-bottom:1px solid #334155">
         <span style="color:#94a3b8;font-size:12px;text-transform:uppercase">Business</span><br>
-        <span style="color:#f1f5f9;font-size:15px">${businessName || 'N/A'}</span>
+        <span style="color:#f1f5f9;font-size:15px">${businessName || 'Unknown'}</span>
       </td></tr>
       <tr><td style="padding:10px 0;border-bottom:1px solid #334155">
         <span style="color:#94a3b8;font-size:12px;text-transform:uppercase">URL</span><br>
         <a href="${url || '#'}" style="color:#60a5fa;font-size:15px;text-decoration:none">${url || 'N/A'}</a>
+      </td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid #334155">
+        <span style="color:#94a3b8;font-size:12px;text-transform:uppercase">Received</span><br>
+        <span style="color:#cbd5e1;font-size:13px">${timestamp} PT</span>
       </td></tr>
       ${jobId ? `<tr><td style="padding:10px 0;border-bottom:1px solid #334155">
         <span style="color:#94a3b8;font-size:12px;text-transform:uppercase">Job ID</span><br>
         <span style="color:#cbd5e1;font-size:13px;font-family:monospace">${jobId}</span>
       </td></tr>` : ''}
     </table>
-    ${previewUrl ? `<div style="text-align:center;margin-top:24px">
-      <a href="${previewUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">View Preview →</a>
-    </div>` : ''}
+    ${failuresHtml}
+    ${actionButtons}
   </td></tr>
   <tr><td style="padding:16px 32px;background:#0f172a;text-align:center;border-top:1px solid #334155">
     <span style="color:#475569;font-size:11px">Paul Tran Studio · Lead Notification</span>
