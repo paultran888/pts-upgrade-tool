@@ -172,17 +172,17 @@ function showResults(data) {
   const summary = document.getElementById('score-summary');
 
   if (score >= 80) {
-    headline.textContent = 'Your site is in good shape';
-    summary.textContent = `Your site scores ${score}/100 — you're ahead of most small business websites. A few tweaks below could push you even further ahead of competitors.`;
+    headline.textContent = 'Looking good!';
+    summary.textContent = `Your site scores ${score}/100. There are still a few things to improve, but you're ahead of most small business websites.`;
   } else if (score >= 60) {
-    headline.textContent = 'You\'re leaving money on the table';
-    summary.textContent = `Your site scores ${score}/100. The foundation is there, but the issues below are silently driving away visitors who would otherwise become customers. Every day these stay unfixed, you're losing potential revenue.`;
+    headline.textContent = 'Decent, but leaving money on the table';
+    summary.textContent = `Your site scores ${score}/100. You're doing some things right, but the issues below are costing you visitors and customers.`;
   } else if (score >= 40) {
-    headline.textContent = 'Your website is actively losing you customers';
-    summary.textContent = `Your site scores ${score}/100. Multiple critical issues are driving visitors away before they ever learn about your business. If you're getting 100 visitors a day, many are leaving within seconds because of the problems below.`;
+    headline.textContent = 'Your website needs work';
+    summary.textContent = `Your site scores ${score}/100. Several critical issues are hurting your visibility and driving potential customers away.`;
   } else {
-    headline.textContent = 'Your website is working against you';
-    summary.textContent = `Your site scores ${score}/100. Right now, your website is doing more harm than good — visitors are leaving with a worse impression than if they'd never found you. The issues below need urgent attention.`;
+    headline.textContent = 'Your website is holding you back';
+    summary.textContent = `Your site scores ${score}/100. Major issues across multiple categories are likely costing you significant business.`;
   }
 
   // Build findings grid
@@ -206,6 +206,18 @@ function showResults(data) {
     'Conversion': '&#127919;'
   };
 
+  // Difficulty & impact label mappings
+  const difficultyLabels = {
+    easy: { text: 'Easy Fix', class: 'badge--easy' },
+    moderate: { text: 'Moderate', class: 'badge--moderate' },
+    developer: { text: 'Needs a Developer', class: 'badge--developer' }
+  };
+  const impactLabels = {
+    high: { text: 'High Impact', class: 'badge--high' },
+    medium: { text: 'Medium Impact', class: 'badge--medium' },
+    low: { text: 'Low Impact', class: 'badge--low' }
+  };
+
   // Render each category as a card
   for (const [cat, items] of Object.entries(categories)) {
     const card = document.createElement('div');
@@ -226,15 +238,30 @@ function showResults(data) {
         <span class="finding-score" style="color:${catColor}">${catPoints}/${catMax}</span>
       </div>
       <div class="finding-items">
-        ${items.map(f => `
-          <div class="finding-item ${f.pass ? 'pass' : 'fail'}">
-            <span class="finding-status">${f.pass ? '&#10003;' : '&#10007;'}</span>
-            <div class="finding-content">
-              <strong>${f.label}</strong>
-              <p>${f.detail}</p>
+        ${items.map(f => {
+          const diffBadge = !f.pass && f.difficulty && difficultyLabels[f.difficulty]
+            ? `<span class="finding-badge ${difficultyLabels[f.difficulty].class}">${difficultyLabels[f.difficulty].text}</span>`
+            : '';
+          const impactBadge = !f.pass && f.impact && impactLabels[f.impact]
+            ? `<span class="finding-badge ${impactLabels[f.impact].class}">${impactLabels[f.impact].text}</span>`
+            : '';
+          const badges = (diffBadge || impactBadge)
+            ? `<div class="finding-badges">${impactBadge}${diffBadge}</div>`
+            : '';
+          const fixTip = !f.pass && f.fix
+            ? `<div class="finding-fix"><span class="finding-fix-icon">&#128736;</span><div class="finding-fix-text"><strong>How to fix:</strong> ${f.fix}</div></div>`
+            : '';
+          return `
+            <div class="finding-item ${f.pass ? 'pass' : 'fail'}">
+              <span class="finding-status">${f.pass ? '&#10003;' : '&#10007;'}</span>
+              <div class="finding-content">
+                <strong>${f.label}</strong>${badges}
+                <p>${f.detail}</p>
+                ${fixTip}
+              </div>
             </div>
-          </div>
-        `).join('')}
+          `;
+        }).join('')}
       </div>
     `;
     grid.appendChild(card);
