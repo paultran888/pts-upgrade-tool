@@ -727,7 +727,7 @@ function buildAuditEmail(data, auditUrl) {
       <div style="text-align:center;background:#0f172a;border-radius:8px;padding:32px 24px;margin:24px 0;">
         <h2 style="font-size:18px;color:#fff;margin:0 0 8px;">Don't want to fix all this yourself?</h2>
         <p style="font-size:14px;color:#94a3b8;margin:0 0 20px;">Our AI will redesign your entire website — fixing every issue above — and show you a live before/after preview.</p>
-        <a href="${BASE_URL}/audit?url=${encodeURIComponent(auditUrl || '')}" style="display:inline-block;background:#3B82F6;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Fix Everything With AI →</a>
+        <a href="${BASE_URL}?url=${encodeURIComponent(auditUrl || '')}" style="display:inline-block;background:#3B82F6;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Fix Everything With AI →</a>
       </div>
 
       <!-- Footer -->
