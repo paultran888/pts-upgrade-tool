@@ -40,7 +40,7 @@ if (process.env.RESEND_API_KEY) {
 
 const app = express();
 const PORT = process.env.PORT || 3090;
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+const BASE_URL = process.env.BASE_URL || 'https://pts-upgrade-tool-production.up.railway.app';
 
 /* ── Persistent data paths ── */
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
