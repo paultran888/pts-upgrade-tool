@@ -523,7 +523,7 @@ app.get('/api/teaser/:jobId', (req, res) => {
    API: CAPTURE LEAD
    ============================================ */
 app.post('/api/lead', async (req, res) => {
-  const { jobId, email, source } = req.body;
+  const { jobId, email, source, auditUrl, auditScore, auditData } = req.body;
 
   if (!email) {
     return res.status(400).json({ error: 'Email is required' });
@@ -535,7 +535,7 @@ app.post('/api/lead', async (req, res) => {
   const lead = {
     id: uuidv4().split('-')[0],
     jobId: jobId || null,
-    url: job?.url || null,
+    url: job?.url || auditUrl || null,
     businessName,
     email,
     source: source || 'talk-to-paul',
@@ -553,34 +553,190 @@ app.post('/api/lead', async (req, res) => {
 
   console.log(`[LEAD][${lead.source}] ${lead.email} — ${lead.businessName || lead.url}`);
 
-  // Auto-email to user
-  const previewUrl = (jobId && job?.status === 'complete') ? `${BASE_URL}/api/preview/${jobId}` : null;
-  await sendEmail({
-    to: email,
-    subject: `Your Website Analysis${businessName ? ` — ${businessName}` : ''}`,
-    html: `<h2>Thanks for checking out our upgrade tool!</h2>
+  // Build email based on source type
+  let userEmailHtml;
+  let userEmailSubject;
+
+  if (source === 'audit' && auditData && auditData.findings) {
+    // ── Rich audit results email ──
+    userEmailSubject = `Your Website Audit: ${auditData.score}/100${auditUrl ? ` — ${auditUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}` : ''}`;
+    userEmailHtml = buildAuditEmail(auditData, auditUrl);
+  } else {
+    // ── Default upgrade tool email ──
+    const previewUrl = (jobId && job?.status === 'complete') ? `${BASE_URL}/api/preview/${jobId}` : null;
+    userEmailSubject = `Your Website Analysis${businessName ? ` — ${businessName}` : ''}`;
+    userEmailHtml = `<h2>Thanks for checking out our upgrade tool!</h2>
       ${previewUrl ? `<p><a href="${previewUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Your Preview</a></p>` : '<p>Your analysis report is ready. Visit the upgrade tool to see it and get your full upgrade built.</p>'}
       <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
       <p><strong>Ready to make it real?</strong></p>
       <p>Paul will personally review and polish your upgrade into a production-ready site. Starting at $500, delivered in 24 hours.</p>
       <p>Just reply to this email or <a href="${BASE_URL}">visit the upgrade tool</a> to get started.</p>
-      <p>— Paul Tran Studio</p>`
-  });
+      <p>— Paul Tran Studio</p>`;
+  }
+
+  await sendEmail({ to: email, subject: userEmailSubject, html: userEmailHtml });
 
   // Notify Paul
+  const previewUrl = (jobId && job?.status === 'complete') ? `${BASE_URL}/api/preview/${jobId}` : null;
   await sendEmail({
     to: PAUL_EMAIL,
-    subject: `New Lead: ${businessName || lead.url || email}`,
-    html: `<h3>New lead from upgrade tool</h3>
+    subject: `New Lead [${source || 'unknown'}]: ${businessName || lead.url || email}${auditScore ? ` (Score: ${auditScore})` : ''}`,
+    html: `<h3>New lead from ${source === 'audit' ? 'free audit' : 'upgrade tool'}</h3>
       <p><strong>Email:</strong> ${email}</p>
       <p><strong>Business:</strong> ${businessName || 'N/A'}</p>
       <p><strong>URL:</strong> ${lead.url || 'N/A'}</p>
+      ${auditScore ? `<p><strong>Audit Score:</strong> ${auditScore}/100</p>` : ''}
       <p><strong>Job:</strong> ${jobId || 'N/A'}</p>
       ${previewUrl ? `<p><a href="${previewUrl}">View Preview</a></p>` : ''}`
   });
 
   res.json({ success: true });
 });
+
+/**
+ * Build a rich HTML email with full audit results.
+ */
+function buildAuditEmail(data, auditUrl) {
+  const score = data.score || 0;
+  const findings = data.findings || [];
+
+  // Score color
+  let scoreColor = '#EF4444';
+  if (score >= 80) scoreColor = '#10B981';
+  else if (score >= 60) scoreColor = '#F59E0B';
+  else if (score >= 40) scoreColor = '#F97316';
+
+  // Score headline
+  let headline = 'Your website is holding you back';
+  if (score >= 80) headline = 'Looking good!';
+  else if (score >= 60) headline = 'Decent, but leaving money on the table';
+  else if (score >= 40) headline = 'Your website needs work';
+
+  // Difficulty labels
+  const diffLabels = { easy: 'Easy Fix', moderate: 'Moderate', developer: 'Needs a Developer' };
+  const diffColors = { easy: '#10B981', moderate: '#3B82F6', developer: '#A855F7' };
+  const impactLabels = { high: 'High Impact', medium: 'Medium Impact', low: 'Low Impact' };
+  const impactColors = { high: '#EF4444', medium: '#F59E0B', low: '#94A3B8' };
+
+  // Group findings by category
+  const categories = {};
+  findings.forEach(f => {
+    if (!categories[f.category]) categories[f.category] = [];
+    categories[f.category].push(f);
+  });
+
+  // Category icons (text-safe)
+  const catEmojis = {
+    'Performance': '⚡', 'Security': '🔒', 'Mobile': '📱',
+    'SEO': '🔍', 'Accessibility': '♿', 'Conversion': '🎯'
+  };
+
+  // Build findings HTML
+  let findingsHtml = '';
+  for (const [cat, items] of Object.entries(categories)) {
+    const catPoints = items.reduce((sum, f) => sum + f.points, 0);
+    const catMax = items.reduce((sum, f) => sum + f.maxPoints, 0);
+    const catPercent = Math.round((catPoints / catMax) * 100);
+    let catColor = '#EF4444';
+    if (catPercent >= 80) catColor = '#10B981';
+    else if (catPercent >= 50) catColor = '#F59E0B';
+
+    findingsHtml += `
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px;border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+        <tr>
+          <td style="background:#f8fafc;padding:14px 16px;border-bottom:1px solid #e5e7eb;">
+            <span style="font-size:16px;">${catEmojis[cat] || '⚡'}</span>
+            <strong style="font-size:15px;color:#1e293b;margin-left:6px;">${cat}</strong>
+            <span style="float:right;font-weight:700;color:${catColor};font-size:14px;">${catPoints}/${catMax}</span>
+          </td>
+        </tr>
+        ${items.map(f => {
+          const statusIcon = f.pass ? '✓' : '✗';
+          const statusColor = f.pass ? '#10B981' : '#EF4444';
+          const statusBg = f.pass ? '#ECFDF5' : '#FEF2F2';
+
+          let badges = '';
+          if (!f.pass && (f.impact || f.difficulty)) {
+            const parts = [];
+            if (f.impact && impactLabels[f.impact]) {
+              parts.push(`<span style="display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px;background:${impactColors[f.impact]}20;color:${impactColors[f.impact]};">${impactLabels[f.impact]}</span>`);
+            }
+            if (f.difficulty && diffLabels[f.difficulty]) {
+              parts.push(`<span style="display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:12px;background:${diffColors[f.difficulty]}20;color:${diffColors[f.difficulty]};">${diffLabels[f.difficulty]}</span>`);
+            }
+            badges = `<div style="margin-top:6px;">${parts.join(' ')}</div>`;
+          }
+
+          let fixBox = '';
+          if (!f.pass && f.fix) {
+            fixBox = `
+              <div style="margin-top:8px;padding:10px 12px;background:#EFF6FF;border-left:3px solid #3B82F6;border-radius:0 6px 6px 0;">
+                <span style="font-size:13px;color:#1e40af;"><strong>How to fix:</strong> ${f.fix}</span>
+              </div>`;
+          }
+
+          return `
+            <tr>
+              <td style="padding:12px 16px;border-bottom:1px solid #f1f5f9;">
+                <table cellpadding="0" cellspacing="0" width="100%"><tr>
+                  <td width="28" valign="top">
+                    <span style="display:inline-block;width:22px;height:22px;border-radius:50%;background:${statusBg};color:${statusColor};text-align:center;line-height:22px;font-size:12px;font-weight:700;">${statusIcon}</span>
+                  </td>
+                  <td valign="top" style="padding-left:8px;">
+                    <strong style="font-size:13px;color:#1e293b;">${f.label}</strong>
+                    ${badges}
+                    <p style="font-size:13px;color:#64748b;line-height:1.5;margin:4px 0 0;">${f.detail}</p>
+                    ${fixBox}
+                  </td>
+                </tr></table>
+              </td>
+            </tr>`;
+        }).join('')}
+      </table>`;
+  }
+
+  // Domain display
+  let domain = auditUrl || '';
+  try { domain = new URL(auditUrl.startsWith('http') ? auditUrl : `https://${auditUrl}`).hostname; } catch (e) { /* keep raw */ }
+
+  return `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;color:#1e293b;">
+
+      <!-- Header -->
+      <div style="text-align:center;padding:32px 20px 24px;">
+        <p style="font-size:13px;color:#64748b;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.05em;">Paul Tran Studio — Website Audit</p>
+        <div style="display:inline-block;width:80px;height:80px;border-radius:50%;border:4px solid ${scoreColor};text-align:center;line-height:72px;">
+          <span style="font-size:28px;font-weight:800;color:${scoreColor};">${score}</span>
+        </div>
+        <h1 style="font-size:22px;margin:12px 0 4px;color:#0f172a;">${headline}</h1>
+        <p style="font-size:14px;color:#64748b;margin:0;">${domain}</p>
+      </div>
+
+      <!-- Summary -->
+      <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:16px 20px;margin:0 0 24px;text-align:center;">
+        <p style="font-size:14px;color:#475569;margin:0;">
+          Your site scored <strong style="color:${scoreColor};">${score}/100</strong> across ${findings.length} checks in 6 categories.
+          ${score < 70 ? 'The issues below are costing you visitors and customers.' : 'A few improvements could take it even further.'}
+        </p>
+      </div>
+
+      <!-- Findings -->
+      ${findingsHtml}
+
+      <!-- CTA -->
+      <div style="text-align:center;background:#0f172a;border-radius:8px;padding:32px 24px;margin:24px 0;">
+        <h2 style="font-size:18px;color:#fff;margin:0 0 8px;">Don't want to fix all this yourself?</h2>
+        <p style="font-size:14px;color:#94a3b8;margin:0 0 20px;">Our AI will redesign your entire website — fixing every issue above — and show you a live before/after preview.</p>
+        <a href="${BASE_URL}/audit?url=${encodeURIComponent(auditUrl || '')}" style="display:inline-block;background:#3B82F6;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">Fix Everything With AI →</a>
+      </div>
+
+      <!-- Footer -->
+      <div style="text-align:center;padding:20px 0;">
+        <p style="font-size:12px;color:#94a3b8;margin:0;">Paul Tran Studio · <a href="https://paultranstudio.com" style="color:#3B82F6;text-decoration:none;">paultranstudio.com</a></p>
+        <p style="font-size:11px;color:#cbd5e1;margin:8px 0 0;">You received this because you requested an audit at ${BASE_URL}</p>
+      </div>
+    </div>`;
+}
 
 /* ============================================
    API: STRIPE CHECKOUT

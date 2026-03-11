@@ -293,7 +293,8 @@ emailForm.addEventListener('submit', async (e) => {
         email,
         source: 'audit',
         auditUrl: currentAuditUrl,
-        auditScore: auditResult?.score
+        auditScore: auditResult?.score,
+        auditData: auditResult || null
       })
     });
 
