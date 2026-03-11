@@ -581,13 +581,7 @@ app.post('/api/lead', async (req, res) => {
   await sendEmail({
     to: PAUL_EMAIL,
     subject: `New Lead [${source || 'unknown'}]: ${businessName || lead.url || email}${auditScore ? ` (Score: ${auditScore})` : ''}`,
-    html: `<h3>New lead from ${source === 'audit' ? 'free audit' : 'upgrade tool'}</h3>
-      <p><strong>Email:</strong> ${email}</p>
-      <p><strong>Business:</strong> ${businessName || 'N/A'}</p>
-      <p><strong>URL:</strong> ${lead.url || 'N/A'}</p>
-      ${auditScore ? `<p><strong>Audit Score:</strong> ${auditScore}/100</p>` : ''}
-      <p><strong>Job:</strong> ${jobId || 'N/A'}</p>
-      ${previewUrl ? `<p><a href="${previewUrl}">View Preview</a></p>` : ''}`
+    html: buildNotificationEmail({ email, businessName, url: lead.url, source, auditScore, jobId, previewUrl })
   });
 
   res.json({ success: true });
@@ -596,6 +590,60 @@ app.post('/api/lead', async (req, res) => {
 /**
  * Build a rich HTML email with full audit results.
  */
+function buildNotificationEmail({ email, businessName, url, source, auditScore, jobId, previewUrl }) {
+  const sourceLabel = source === 'audit' ? '🔍 Free Audit' : '⚡ Upgrade Tool';
+  const sourceColor = source === 'audit' ? '#3B82F6' : '#10B981';
+  let scoreBadge = '';
+  if (auditScore) {
+    let sc = '#EF4444';
+    if (auditScore >= 80) sc = '#10B981';
+    else if (auditScore >= 60) sc = '#F59E0B';
+    else if (auditScore >= 40) sc = '#F97316';
+    scoreBadge = `<div style="text-align:center;margin:16px 0">
+      <div style="display:inline-block;width:72px;height:72px;border-radius:50%;border:4px solid ${sc};line-height:72px;font-size:28px;font-weight:700;color:${sc}">${auditScore}</div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:4px">Audit Score</div>
+    </div>`;
+  }
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:32px 16px">
+<tr><td align="center">
+<table width="560" cellpadding="0" cellspacing="0" style="background:#1e293b;border-radius:12px;overflow:hidden">
+  <tr><td style="background:linear-gradient(135deg,${sourceColor},#6366f1);padding:24px 32px;text-align:center">
+    <div style="font-size:13px;color:rgba(255,255,255,0.8);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px">New Lead</div>
+    <div style="font-size:22px;font-weight:700;color:#fff">${sourceLabel}</div>
+  </td></tr>
+  <tr><td style="padding:28px 32px">
+    ${scoreBadge}
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px">
+      <tr><td style="padding:10px 0;border-bottom:1px solid #334155">
+        <span style="color:#94a3b8;font-size:12px;text-transform:uppercase">Email</span><br>
+        <a href="mailto:${email}" style="color:#60a5fa;font-size:15px;text-decoration:none">${email}</a>
+      </td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid #334155">
+        <span style="color:#94a3b8;font-size:12px;text-transform:uppercase">Business</span><br>
+        <span style="color:#f1f5f9;font-size:15px">${businessName || 'N/A'}</span>
+      </td></tr>
+      <tr><td style="padding:10px 0;border-bottom:1px solid #334155">
+        <span style="color:#94a3b8;font-size:12px;text-transform:uppercase">URL</span><br>
+        <a href="${url || '#'}" style="color:#60a5fa;font-size:15px;text-decoration:none">${url || 'N/A'}</a>
+      </td></tr>
+      ${jobId ? `<tr><td style="padding:10px 0;border-bottom:1px solid #334155">
+        <span style="color:#94a3b8;font-size:12px;text-transform:uppercase">Job ID</span><br>
+        <span style="color:#cbd5e1;font-size:13px;font-family:monospace">${jobId}</span>
+      </td></tr>` : ''}
+    </table>
+    ${previewUrl ? `<div style="text-align:center;margin-top:24px">
+      <a href="${previewUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px">View Preview →</a>
+    </div>` : ''}
+  </td></tr>
+  <tr><td style="padding:16px 32px;background:#0f172a;text-align:center;border-top:1px solid #334155">
+    <span style="color:#475569;font-size:11px">Paul Tran Studio · Lead Notification</span>
+  </td></tr>
+</table>
+</td></tr></table></body></html>`;
+}
+
 function buildAuditEmail(data, auditUrl) {
   const score = data.score || 0;
   const findings = data.findings || [];
