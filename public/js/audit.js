@@ -272,18 +272,18 @@ function showResults(data) {
   upgradeCta.href = `/?url=${encodeURIComponent(currentAuditUrl)}`;
 }
 
-/* ── Email capture ── */
-const emailForm = document.getElementById('email-form');
-const emailSuccess = document.getElementById('email-success');
+/* ── Report Email Capture (top of results) ── */
+const reportEmailForm = document.getElementById('report-email-form');
+const reportEmailSuccess = document.getElementById('report-email-success');
 
-emailForm.addEventListener('submit', async (e) => {
+reportEmailForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const email = document.getElementById('email-input').value.trim();
+  const email = document.getElementById('report-email-input').value.trim();
   if (!email) return;
 
-  const emailBtn = document.getElementById('email-btn');
-  emailBtn.disabled = true;
-  emailBtn.textContent = 'Sending...';
+  const btn = document.getElementById('report-email-btn');
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
 
   try {
     await fetch('/api/lead', {
@@ -298,11 +298,11 @@ emailForm.addEventListener('submit', async (e) => {
       })
     });
 
-    emailForm.style.display = 'none';
-    emailSuccess.style.display = '';
+    reportEmailForm.style.display = 'none';
+    reportEmailSuccess.style.display = '';
   } catch {
-    emailBtn.disabled = false;
-    emailBtn.textContent = 'Send My Results';
+    btn.disabled = false;
+    btn.textContent = 'Email My Report';
   }
 });
 

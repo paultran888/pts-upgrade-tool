@@ -653,6 +653,74 @@ body {
   font-size: 15px;
 }
 
+/* ── Report Email Bar (top of results) ── */
+.report-email-bar {
+  background: linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(16,185,129,0.06) 100%);
+  border: 1px solid rgba(59,130,246,0.2);
+  border-radius: var(--radius-lg, 12px);
+  padding: 20px 28px;
+  margin-bottom: 32px;
+}
+.report-email-inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.report-email-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+.report-email-text {
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.report-email-form {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 280px;
+}
+.report-email-form input[type="email"] {
+  flex: 1;
+  padding: 10px 14px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  font-size: 14px;
+  font-family: var(--font-body);
+  outline: none;
+  min-width: 0;
+}
+.report-email-form input[type="email"]:focus {
+  border-color: var(--color-primary);
+}
+.report-email-form input::placeholder { color: var(--color-text-muted); }
+.report-email-form button {
+  padding: 10px 18px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+.report-email-form button:hover { opacity: 0.9; }
+.report-email-form button:disabled { opacity: 0.6; cursor: not-allowed; }
+.report-email-success {
+  color: var(--color-secondary);
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0;
+}
+
 /* ═══════ HOW IT WORKS ═══════ */
 .how-it-works {
   padding: 60px 0;
@@ -735,6 +803,16 @@ body {
 
   .email-form {
     flex-direction: column;
+  }
+
+  .report-email-inner {
+    flex-direction: column;
+    text-align: center;
+  }
+  .report-email-form {
+    flex-direction: column;
+    min-width: unset;
+    width: 100%;
   }
 
   .hero { padding: 120px 0 60px; }

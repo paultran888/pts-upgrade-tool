@@ -103,6 +103,19 @@
         </div>
       </div>
 
+      <!-- Email Report Capture — shown right after score, before findings -->
+      <div class="report-email-bar" id="report-email-bar">
+        <div class="report-email-inner">
+          <span class="report-email-icon">&#128233;</span>
+          <span class="report-email-text">Want a copy of this report?</span>
+          <form id="report-email-form" class="report-email-form">
+            <input type="email" id="report-email-input" placeholder="your@email.com" required>
+            <button type="submit" id="report-email-btn">Email My Report</button>
+          </form>
+          <p id="report-email-success" class="report-email-success" style="display:none;">&#10003; Sent! Check your inbox.</p>
+        </div>
+      </div>
+
       <!-- Findings Grid -->
       <div class="findings-grid" id="findings-grid">
         <!-- Populated by JS -->
@@ -118,15 +131,7 @@
           <a href="mailto:paul@paultranstudio.com" class="btn-outline-large">Talk to Paul First</a>
         </div>
 
-        <!-- Email Capture -->
-        <div class="email-capture" id="email-capture">
-          <p class="email-label">Or get your audit results + upgrade link emailed to you:</p>
-          <form id="email-form" class="email-form">
-            <input type="email" id="email-input" placeholder="your@email.com" required>
-            <button type="submit" id="email-btn">Send My Results</button>
-          </form>
-          <p id="email-success" class="email-success" style="display:none;">Sent! Check your inbox.</p>
-        </div>
+        <!-- Email capture moved to top of results (report-email-bar) -->
       </div>
 
     </div>
