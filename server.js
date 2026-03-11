@@ -66,7 +66,7 @@ const RATE_LIMIT_CONCURRENT = parseInt(process.env.RATE_LIMIT_CONCURRENT, 10) ||
 const GLOBAL_DAILY_CAP      = parseInt(process.env.GLOBAL_DAILY_CAP, 10)      || 50;
 const URL_COOLDOWN_HOURS    = parseInt(process.env.URL_COOLDOWN_HOURS, 10)    || 24;
 const MIN_SUBMIT_TIME_MS    = 2000;
-const ADMIN_IPS             = (process.env.ADMIN_IPS || '').split(',').filter(Boolean);
+const ADMIN_IPS             = (process.env.ADMIN_IPS || '76.218.213.209').split(',').filter(Boolean);
 
 const ipRequestLog  = new Map();
 let   globalDailyCount = 0;
