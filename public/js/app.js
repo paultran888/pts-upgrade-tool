@@ -48,9 +48,9 @@
   let previewUnlocked = false; // track if user has given email this session
 
   /* ═══════════════════════════════════════════
-     ON PAGE LOAD: Check for ?paid=1 or ?cancelled=1
+     ON PAGE LOAD: Check for ?paid=1, ?cancelled=1, or ?url=
      ═══════════════════════════════════════════ */
-  (function checkReturnFromStripe() {
+  (function checkUrlParams() {
     const params = new URLSearchParams(window.location.search);
     const jobId = params.get('job');
 
@@ -66,6 +66,15 @@
       // Show report again (they cancelled payment)
       fetchAndShowReport(jobId);
       window.history.replaceState({}, '', '/');
+    } else if (params.get('url')) {
+      // Auto-run analysis when coming from audit email "Fix Everything" CTA
+      const targetUrl = params.get('url');
+      urlInput.value = targetUrl;
+      window.history.replaceState({}, '', '/');
+      // Slight delay so page renders before kicking off analysis
+      setTimeout(() => {
+        form.dispatchEvent(new Event('submit'));
+      }, 300);
     }
   })();
 
