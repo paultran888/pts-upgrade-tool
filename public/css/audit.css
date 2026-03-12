@@ -653,6 +653,70 @@ body {
   font-size: 15px;
 }
 
+/* ── Audit Methodology Explainer ── */
+.audit-method {
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 24px 28px;
+  margin-bottom: 24px;
+}
+.audit-method-inner {}
+.audit-method-headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.audit-method-icon {
+  font-size: 20px;
+}
+.audit-method-headline strong {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--color-text);
+}
+.audit-method-text {
+  color: var(--color-text-muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.audit-method-text strong {
+  color: var(--color-text);
+}
+.audit-method-stats {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.audit-method-stat {
+  flex: 1;
+  text-align: center;
+  padding: 12px 8px;
+  border-right: 1px solid var(--color-border);
+}
+.audit-method-stat:last-child {
+  border-right: none;
+}
+.stat-num {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-bottom: 2px;
+}
+.stat-label {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 /* ── Report Email Bar (top of results) ── */
 .report-email-bar {
   background: linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(16,185,129,0.06) 100%);
@@ -813,6 +877,21 @@ body {
     flex-direction: column;
     min-width: unset;
     width: 100%;
+  }
+
+  .audit-method-stats {
+    flex-wrap: wrap;
+  }
+  .audit-method-stat {
+    flex: 1 1 calc(50% - 1px);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .audit-method-stat:nth-child(2) {
+    border-right: none;
+  }
+  .audit-method-stat:nth-child(3),
+  .audit-method-stat:nth-child(4) {
+    border-bottom: none;
   }
 
   .hero { padding: 120px 0 60px; }

@@ -289,8 +289,8 @@ app.post('/api/audit', async (req, res) => {
 
   resetDailyCountIfNeeded();
   const ip = getIp(req);
-  const isAdmin = ADMIN_IPS.includes(ip);
 
+  const isAdmin = ADMIN_IPS.includes(ip);
   if (!isAdmin && countTodayAudits(ip) >= AUDIT_RATE_PER_IP) {
     return res.status(429).json({ error: `You've used all ${AUDIT_RATE_PER_IP} free audits for today. Come back tomorrow!` });
   }
@@ -349,8 +349,8 @@ app.post('/api/analyze', (req, res) => {
 
   resetDailyCountIfNeeded();
   const ip = getIp(req);
-  const isAdmin = ADMIN_IPS.includes(ip);
 
+  const isAdmin = ADMIN_IPS.includes(ip);
   if (!isAdmin && globalDailyCount >= GLOBAL_DAILY_CAP) {
     console.log(`[RATE LIMIT] Global daily cap (${GLOBAL_DAILY_CAP}) reached`);
     return res.status(429).json({ error: 'Our tool is very popular today! Please try again tomorrow.' });
