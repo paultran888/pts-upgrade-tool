@@ -197,17 +197,18 @@
           </div>
         </div>
 
-        <!-- UNLOCKED state — shown after email capture -->
+        <!-- UNLOCKED state — before/after slider shown after email capture -->
         <div class="teaser-unlocked hidden" id="teaserUnlocked">
-          <div class="report__teaser-compare">
-            <div class="report__teaser-side">
-              <span class="report__teaser-label">Current Site</span>
-              <img id="reportBeforeImgUnlocked" src="" alt="Current website" class="report__teaser-img" />
+          <div class="teaser-slider-wrap">
+            <div class="teaser-slider-labels">
+              <span class="teaser-slider-label teaser-slider-label--before">Before</span>
+              <span class="teaser-slider-label teaser-slider-label--after">After</span>
             </div>
-            <div class="report__teaser-side">
-              <span class="report__teaser-label report__teaser-label--new">Preview</span>
-              <img id="reportTeaserImgUnlocked" src="" alt="Upgrade preview" class="report__teaser-img" />
-            </div>
+            <img-comparison-slider class="teaser-slider" id="teaserSlider">
+              <img slot="first" id="reportBeforeImgUnlocked" src="" alt="Current website" />
+              <img slot="second" id="reportTeaserImgUnlocked" src="" alt="Upgrade preview" />
+            </img-comparison-slider>
+            <p class="teaser-slider-hint">&#8596; Drag to compare your current site vs. the AI upgrade</p>
           </div>
           <a href="#" id="reportTeaserLink" target="_blank" class="btn btn--outline report__teaser-link">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>

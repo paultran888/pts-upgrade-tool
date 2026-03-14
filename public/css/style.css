@@ -580,6 +580,57 @@ button { cursor: pointer; border: none; background: none; font: inherit; color: 
   }
 }
 
+/* Before/After Slider (unlocked teaser) */
+.teaser-slider-wrap {
+  margin-bottom: 1rem;
+}
+.teaser-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  padding: 0 4px;
+}
+.teaser-slider-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 3px 10px;
+  border-radius: 100px;
+}
+.teaser-slider-label--before {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+}
+.teaser-slider-label--after {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+.teaser-slider {
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--color-border);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  --divider-width: 3px;
+  --divider-color: var(--color-primary);
+  --default-handle-opacity: 0.9;
+  --default-handle-color: var(--color-primary);
+}
+.teaser-slider img {
+  width: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: top;
+}
+.teaser-slider-hint {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: 0.5rem;
+  opacity: 0.7;
+}
+
 /* Gradient Button */
 .btn--gradient {
   background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
