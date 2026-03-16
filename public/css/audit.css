@@ -717,6 +717,100 @@ body {
   letter-spacing: 0.05em;
 }
 
+/* ── Priority Fix Card ── */
+.priority-fix {
+  background: linear-gradient(135deg, rgba(245,158,11,0.08) 0%, rgba(239,68,68,0.06) 100%);
+  border: 1px solid rgba(245,158,11,0.3);
+  border-left: 4px solid #F59E0B;
+  border-radius: var(--radius-lg);
+  padding: 28px 28px 24px;
+  margin-bottom: 24px;
+  position: relative;
+}
+.priority-fix.hidden { display: none; }
+
+.priority-fix-inner {}
+
+.priority-fix-badge {
+  display: inline-block;
+  background: rgba(245,158,11,0.15);
+  color: #FBBF24;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 100px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.priority-fix-label {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 6px;
+}
+
+.priority-fix-detail {
+  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+
+.priority-fix-tip {
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px;
+  background: rgba(16,185,129,0.08);
+  border-left: 3px solid rgba(16,185,129,0.5);
+  border-radius: 0 8px 8px 0;
+  margin-bottom: 18px;
+}
+.priority-fix-tip-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+}
+.priority-fix-tip-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-text-muted);
+}
+.priority-fix-tip-text strong {
+  color: var(--color-secondary);
+  font-weight: 600;
+}
+
+.priority-fix-nudge {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.priority-fix-nudge-text {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+.priority-fix-btn {
+  display: inline-block;
+  padding: 10px 22px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  text-decoration: none;
+  transition: background 0.2s, transform 0.15s;
+  white-space: nowrap;
+}
+.priority-fix-btn:hover {
+  background: var(--color-primary-hover);
+  transform: translateY(-1px);
+}
+
 /* ── Report Email Bar (top of results) ── */
 .report-email-bar {
   background: linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(16,185,129,0.06) 100%);
@@ -867,6 +961,15 @@ body {
 
   .email-form {
     flex-direction: column;
+  }
+
+  .priority-fix-nudge {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  .priority-fix-btn {
+    text-align: center;
   }
 
   .report-email-inner {

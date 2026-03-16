@@ -58,6 +58,10 @@ const BUILD_MODEL = process.env.BUILD_MODEL || 'claude-opus-4-6';
 const PREVIEW_TTL_DAYS = 30;
 const PREVIEW_TTL_MS = PREVIEW_TTL_DAYS * 24 * 60 * 60 * 1000;
 
+/* ── Admin IP bypass (skip all rate limits) ── */
+const ADMIN_IPS = new Set((process.env.ADMIN_IPS || '76.218.213.209').split(',').map(s => s.trim()));
+function isAdmin(ip) { return ADMIN_IPS.has(ip); }
+
 /* ══════════════════════════════════════════════
    ABUSE PREVENTION
    ══════════════════════════════════════════════ */
@@ -66,13 +70,6 @@ const RATE_LIMIT_CONCURRENT = parseInt(process.env.RATE_LIMIT_CONCURRENT, 10) ||
 const GLOBAL_DAILY_CAP      = parseInt(process.env.GLOBAL_DAILY_CAP, 10)      || 50;
 const URL_COOLDOWN_HOURS    = parseInt(process.env.URL_COOLDOWN_HOURS, 10)    || 24;
 const MIN_SUBMIT_TIME_MS    = 2000;
-
-/* ── Admin IP bypass ── */
-const ADMIN_IPS = (process.env.ADMIN_IPS || '76.218.213.209').split(',').map(s => s.trim());
-function isAdmin(req) {
-  const ip = getIp(req);
-  return ADMIN_IPS.includes(ip);
-}
 
 const ipRequestLog  = new Map();
 let   globalDailyCount = 0;
@@ -296,7 +293,7 @@ app.post('/api/audit', async (req, res) => {
   resetDailyCountIfNeeded();
   const ip = getIp(req);
 
-  if (!isAdmin(req) && countTodayAudits(ip) >= AUDIT_RATE_PER_IP) {
+  if (!isAdmin(ip) && countTodayAudits(ip) >= AUDIT_RATE_PER_IP) {
     return res.status(429).json({ error: `You've used all ${AUDIT_RATE_PER_IP} free audits for today. Come back tomorrow!` });
   }
 
@@ -355,19 +352,17 @@ app.post('/api/analyze', (req, res) => {
   resetDailyCountIfNeeded();
   const ip = getIp(req);
 
-  const _isAdmin = isAdmin(req);
-
-  if (!_isAdmin && globalDailyCount >= GLOBAL_DAILY_CAP) {
+  if (!isAdmin(ip) && globalDailyCount >= GLOBAL_DAILY_CAP) {
     console.log(`[RATE LIMIT] Global daily cap (${GLOBAL_DAILY_CAP}) reached`);
     return res.status(429).json({ error: 'Our tool is very popular today! Please try again tomorrow.' });
   }
 
-  if (!_isAdmin && countTodayRequests(ip) >= RATE_LIMIT_PER_IP) {
+  if (!isAdmin(ip) && countTodayRequests(ip) >= RATE_LIMIT_PER_IP) {
     console.log(`[RATE LIMIT] IP ${ip} hit daily limit (${RATE_LIMIT_PER_IP})`);
     return res.status(429).json({ error: `You've used all ${RATE_LIMIT_PER_IP} free analyses for today. Come back tomorrow, or contact us to get started now.` });
   }
 
-  if (!_isAdmin && countActiveJobs(ip) >= RATE_LIMIT_CONCURRENT) {
+  if (!isAdmin(ip) && countActiveJobs(ip) >= RATE_LIMIT_CONCURRENT) {
     console.log(`[RATE LIMIT] IP ${ip} has active job in progress`);
     return res.status(429).json({ error: 'You already have an analysis in progress. Please wait for it to finish.' });
   }

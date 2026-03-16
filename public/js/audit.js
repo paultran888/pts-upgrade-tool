@@ -267,9 +267,54 @@ function showResults(data) {
     grid.appendChild(card);
   }
 
+  // ── Priority Fix Card ──
+  renderPriorityFix(data.findings, data.score);
+
   // Set upgrade CTA URL
   const upgradeCta = document.getElementById('upgrade-cta');
   upgradeCta.href = `/?url=${encodeURIComponent(currentAuditUrl)}`;
+}
+
+/* ── Priority Fix Card Logic ── */
+function renderPriorityFix(findings, score) {
+  const card = document.getElementById('priority-fix');
+  const failingFindings = findings.filter(f => !f.pass && f.impact && f.difficulty);
+
+  // Only show if score < 85 and at least 3 failing findings
+  if (score >= 85 || failingFindings.length < 3) {
+    card.classList.add('hidden');
+    return;
+  }
+
+  // Score each finding: impact * 2 - difficulty (higher = show first)
+  const impactScore = { high: 3, medium: 2, low: 1 };
+  const difficultyScore = { easy: 1, moderate: 2, developer: 3 };
+
+  failingFindings.sort((a, b) => {
+    const scoreA = (impactScore[a.impact] || 0) * 2 - (difficultyScore[a.difficulty] || 0);
+    const scoreB = (impactScore[b.impact] || 0) * 2 - (difficultyScore[b.difficulty] || 0);
+    return scoreB - scoreA;
+  });
+
+  const top = failingFindings[0];
+
+  document.getElementById('priority-fix-label').textContent = top.label;
+  document.getElementById('priority-fix-detail').textContent = top.detail;
+
+  const tipWrap = document.getElementById('priority-fix-tip');
+  if (top.fix) {
+    tipWrap.style.display = '';
+    document.getElementById('priority-fix-tip-text').innerHTML =
+      `<strong>Quick fix:</strong> ${top.fix}`;
+  } else {
+    tipWrap.style.display = 'none';
+  }
+
+  // Set CTA to auto-run upgrade tool
+  document.getElementById('priority-fix-cta').href =
+    `/?url=${encodeURIComponent(currentAuditUrl)}`;
+
+  card.classList.remove('hidden');
 }
 
 /* ── Report Email Capture (top of results) ── */
