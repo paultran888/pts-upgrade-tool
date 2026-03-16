@@ -978,6 +978,23 @@ button { cursor: pointer; border: none; background: none; font: inherit; color: 
   user-select: none;
   opacity: 0.6;
 }
+.teaser-gate__preview-tease {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.teaser-gate__iframe-blur {
+  filter: blur(8px);
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.5;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.teaser-preview-wrap {
+  border-radius: 12px;
+  overflow: hidden;
+}
 
 .teaser-gate__overlay {
   position: absolute;
