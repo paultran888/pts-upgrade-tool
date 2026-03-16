@@ -274,9 +274,7 @@ app.post('/api/audit', async (req, res) => {
 
   if (!url) return res.status(400).json({ error: 'URL is required' });
   if (_hp) return res.status(400).json({ error: 'Invalid request' });
-  if (!isAdmin(ip) && _t && (Date.now() - parseInt(_t, 10)) < MIN_SUBMIT_TIME_MS) {
-    return res.status(429).json({ error: 'Please wait a moment before submitting.' });
-  }
+  // Bot timer disabled on audit route too
 
   let parsedUrl;
   try {
@@ -333,11 +331,8 @@ app.post('/api/analyze', (req, res) => {
     return res.status(400).json({ error: 'Invalid request' });
   }
 
-  if (!isAdmin(ip) && _t && (Date.now() - parseInt(_t, 10)) < MIN_SUBMIT_TIME_MS) {
-    console.log(`[BLOCKED] Too-fast submit from ${ip} (${Date.now() - parseInt(_t, 10)}ms)`);
-    return res.status(429).json({ error: 'Please wait a moment before submitting.' });
-  }
-
+  // Bot timer disabled — other rate limits (IP daily, concurrent, global cap) handle abuse
+  
   let parsedUrl;
   try {
     parsedUrl = new URL(url.startsWith('http') ? url : `https://${url}`);
