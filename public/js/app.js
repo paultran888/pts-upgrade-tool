@@ -400,12 +400,28 @@
     if (data.teaserScreenshot && data.beforeScreenshot) {
       teaserSection.classList.remove('hidden');
 
-      // Set images for both gated (blurred) and unlocked states
+      // Before image from thum.io, teaser via iframe or image
       $('#reportBeforeImg').src = data.beforeScreenshot;
-      $('#reportTeaserImg').src = data.teaserScreenshot;
       $('#reportBeforeImgUnlocked').src = data.beforeScreenshot;
-      $('#reportTeaserImgUnlocked').src = data.teaserScreenshot;
-      $('#reportTeaserLink').href = `/api/teaser/${data.id}`;
+      
+      if (data.teaserScreenshot === 'iframe' && data.teaserUrl) {
+        // Replace teaser img with iframe
+        const teaserImg = $('#reportTeaserImg');
+        const iframe = document.createElement('iframe');
+        iframe.src = data.teaserUrl;
+        iframe.style.cssText = 'width:100%;height:100%;border:none;border-radius:inherit;';
+        teaserImg.parentNode.replaceChild(iframe, teaserImg);
+        
+        const teaserImgUnlocked = $('#reportTeaserImgUnlocked');
+        const iframe2 = document.createElement('iframe');
+        iframe2.src = data.teaserUrl;
+        iframe2.style.cssText = 'width:100%;height:100%;border:none;border-radius:inherit;';
+        teaserImgUnlocked.parentNode.replaceChild(iframe2, teaserImgUnlocked);
+      } else {
+        $('#reportTeaserImg').src = data.teaserScreenshot;
+        $('#reportTeaserImgUnlocked').src = data.teaserScreenshot;
+      }
+      $('#reportTeaserLink').href = data.teaserUrl || `/api/teaser/${data.id}`;
 
       if (previewUnlocked) {
         // Already gave email this session — show unlocked

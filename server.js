@@ -418,9 +418,10 @@ app.get('/api/status/:jobId', (req, res) => {
     progressMessage: job.progressMessage,
     progressDetail: job.progressDetail || '',
     paid: job.paid || false,
-    beforeScreenshot: job.beforeScreenshot ? `/screenshots/${job.id}-before.png` : null,
+    beforeScreenshot: job.url ? `https://image.thum.io/get/width/1200/crop/800/${job.url}` : null,
     afterScreenshot: job.afterScreenshot ? `/screenshots/${job.id}-after.png` : null,
-    teaserScreenshot: job.teaserScreenshot ? `/screenshots/${job.id}-teaser.png` : null,
+    teaserScreenshot: job.teaserBuilt ? 'iframe' : null,
+    teaserUrl: job.teaserBuilt ? `/api/teaser/${job.id}` : null,
     error: job.error,
     createdAt: job.createdAt,
     expiresAt: job.expiresAt || null
@@ -974,10 +975,7 @@ async function processAnalysis(jobId) {
       const teaserHtmlPath = path.join(JOBS_DIR, `${jobId}-teaser.html`);
       fs.writeFileSync(teaserHtmlPath, teaserHtml, 'utf8');
 
-      // Screenshot the teaser
-      updateJob(jobId, { progress: 68, progressMessage: 'Capturing preview screenshot...', progressDetail: 'Taking a screenshot of your upgrade preview.' });
-      const teaserScreenshotPath = path.join(SCREENSHOTS_DIR, `${jobId}-teaser.png`);
-      await screenshotHTML(teaserHtml, teaserScreenshotPath);
+      // Skip screenshot — teaser HTML served directly via iframe/preview
       teaserBuilt = true;
     } catch (teaserErr) {
       clearInterval(teaserUpdates);
@@ -993,7 +991,7 @@ async function processAnalysis(jobId) {
       progressMessage: 'Your analysis report is ready!',
       progressDetail: '',
       analysis,
-      teaserScreenshot: teaserBuilt
+      teaserBuilt: teaserBuilt
     });
 
     console.log(`[ANALYSIS] Job ${jobId} complete — ${analysis.businessName || job.url}. Teaser: ${teaserBuilt}. Awaiting payment for build.`);
