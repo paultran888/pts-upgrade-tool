@@ -95,7 +95,7 @@
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, _hp: hp, _t: String(pageLoadTime) })
+        body: JSON.stringify({ url, _hp: hp, _t: String(Date.now()) })
       });
 
       const data = await res.json();
