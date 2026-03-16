@@ -322,6 +322,7 @@ app.post('/api/audit', async (req, res) => {
 app.post('/api/analyze', (req, res) => {
   const { url, _hp, _t } = req.body;
   const ip = getIp(req);
+  console.log(`[DEBUG] /api/analyze ip=${ip} admin=${isAdmin(ip)} xff=${req.headers['x-forwarded-for']} _t=${_t} now=${Date.now()} diff=${_t ? Date.now() - parseInt(_t,10) : 'n/a'}`);
 
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
