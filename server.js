@@ -270,10 +270,11 @@ function countTodayAudits(ip) {
 
 app.post('/api/audit', async (req, res) => {
   const { url, _hp, _t } = req.body;
+  const ip = getIp(req);
 
   if (!url) return res.status(400).json({ error: 'URL is required' });
   if (_hp) return res.status(400).json({ error: 'Invalid request' });
-  if (_t && (Date.now() - parseInt(_t, 10)) < MIN_SUBMIT_TIME_MS) {
+  if (!isAdmin(ip) && _t && (Date.now() - parseInt(_t, 10)) < MIN_SUBMIT_TIME_MS) {
     return res.status(429).json({ error: 'Please wait a moment before submitting.' });
   }
 
@@ -291,7 +292,6 @@ app.post('/api/audit', async (req, res) => {
   }
 
   resetDailyCountIfNeeded();
-  const ip = getIp(req);
 
   if (!isAdmin(ip) && countTodayAudits(ip) >= AUDIT_RATE_PER_IP) {
     return res.status(429).json({ error: `You've used all ${AUDIT_RATE_PER_IP} free audits for today. Come back tomorrow!` });
@@ -321,18 +321,19 @@ app.post('/api/audit', async (req, res) => {
    ============================================ */
 app.post('/api/analyze', (req, res) => {
   const { url, _hp, _t } = req.body;
+  const ip = getIp(req);
 
   if (!url) {
     return res.status(400).json({ error: 'URL is required' });
   }
 
   if (_hp) {
-    console.log(`[BLOCKED] Honeypot triggered from ${getIp(req)}`);
+    console.log(`[BLOCKED] Honeypot triggered from ${ip}`);
     return res.status(400).json({ error: 'Invalid request' });
   }
 
-  if (_t && (Date.now() - parseInt(_t, 10)) < MIN_SUBMIT_TIME_MS) {
-    console.log(`[BLOCKED] Too-fast submit from ${getIp(req)} (${Date.now() - parseInt(_t, 10)}ms)`);
+  if (!isAdmin(ip) && _t && (Date.now() - parseInt(_t, 10)) < MIN_SUBMIT_TIME_MS) {
+    console.log(`[BLOCKED] Too-fast submit from ${ip} (${Date.now() - parseInt(_t, 10)}ms)`);
     return res.status(429).json({ error: 'Please wait a moment before submitting.' });
   }
 
@@ -350,7 +351,6 @@ app.post('/api/analyze', (req, res) => {
   }
 
   resetDailyCountIfNeeded();
-  const ip = getIp(req);
 
   if (!isAdmin(ip) && globalDailyCount >= GLOBAL_DAILY_CAP) {
     console.log(`[RATE LIMIT] Global daily cap (${GLOBAL_DAILY_CAP}) reached`);
