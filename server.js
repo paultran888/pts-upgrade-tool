@@ -582,26 +582,22 @@ app.post('/api/lead', async (req, res) => {
     userEmailSubject = `Your Website Audit: ${auditData.score}/100${auditUrl ? ` — ${auditUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}` : ''}`;
     userEmailHtml = buildAuditEmail(auditData, auditUrl);
   } else {
-    // ── Default upgrade tool email ──
+    // ── Upgrade tool prospect email (rich branded version) ──
     const previewUrl = (jobId && job?.status === 'complete') ? `${BASE_URL}/api/preview/${jobId}` : null;
+    const siteUrl = job?.url || lead.url || '';
     userEmailSubject = `Your Website Analysis${businessName ? ` — ${businessName}` : ''}`;
-    userEmailHtml = `<h2>Thanks for checking out our upgrade tool!</h2>
-      ${previewUrl ? `<p><a href="${previewUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View Your Preview</a></p>` : '<p>Your analysis report is ready. Visit the upgrade tool to see it and get your full upgrade built.</p>'}
-      <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
-      <p><strong>Ready to make it real?</strong></p>
-      <p>Paul will personally review and polish your upgrade into a production-ready site. Starting at $500, delivered in 24 hours.</p>
-      <p>Just reply to this email or <a href="${BASE_URL}">visit the upgrade tool</a> to get started.</p>
-      <p>— Paul Tran Studio</p>`;
+    userEmailHtml = buildProspectEmail({ businessName, siteUrl, job, previewUrl, jobId });
   }
 
   await sendEmail({ to: email, subject: userEmailSubject, html: userEmailHtml });
 
   // Notify Paul
   const previewUrl = (jobId && job?.status === 'complete') ? `${BASE_URL}/api/preview/${jobId}` : null;
+  const designScore = job?.analysis?.currentAssessment?.designScore || null;
   await sendEmail({
     to: PAUL_EMAIL,
-    subject: `New Lead [${source || 'unknown'}]: ${businessName || lead.url || email}${auditScore ? ` (Score: ${auditScore})` : ''}`,
-    html: buildNotificationEmail({ email, businessName, url: lead.url, source, auditScore, auditData, jobId, previewUrl })
+    subject: `New Lead [${source || 'unknown'}]: ${businessName || lead.url || email}${auditScore ? ` (Score: ${auditScore})` : designScore ? ` (Design: ${designScore}/10)` : ''}`,
+    html: buildNotificationEmail({ email, businessName, url: lead.url, source, auditScore, auditData, jobId, previewUrl, job })
   });
 
   res.json({ success: true });
@@ -610,13 +606,16 @@ app.post('/api/lead', async (req, res) => {
 /**
  * Build a rich HTML email with full audit results.
  */
-function buildNotificationEmail({ email, businessName, url, source, auditScore, auditData, jobId, previewUrl }) {
+function buildNotificationEmail({ email, businessName, url, source, auditScore, auditData, jobId, previewUrl, job }) {
   const sourceLabel = source === 'audit' ? '🔍 Free Audit' : '⚡ Upgrade Tool';
   const sourceColor = source === 'audit' ? '#3B82F6' : '#10B981';
   const now = new Date();
   const timestamp = now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
 
-  // Score badge
+  // Score badge — audit score OR AI design score
+  const analysis = job?.analysis || {};
+  const assessment = analysis.currentAssessment || {};
+  const designScore = assessment.designScore || null;
   let scoreBadge = '';
   if (auditScore) {
     let sc = '#EF4444';
@@ -627,9 +626,27 @@ function buildNotificationEmail({ email, businessName, url, source, auditScore, 
       <div style="display:inline-block;width:72px;height:72px;border-radius:50%;border:4px solid ${sc};line-height:72px;font-size:28px;font-weight:700;color:${sc}">${auditScore}</div>
       <div style="font-size:12px;color:#94a3b8;margin-top:4px">Audit Score</div>
     </div>`;
+  } else if (designScore) {
+    let sc = '#EF4444';
+    if (designScore >= 8) sc = '#10B981';
+    else if (designScore >= 6) sc = '#F59E0B';
+    else if (designScore >= 4) sc = '#F97316';
+    scoreBadge = `<div style="text-align:center;margin:16px 0">
+      <div style="display:inline-block;width:72px;height:72px;border-radius:50%;border:4px solid ${sc};line-height:72px;font-size:28px;font-weight:700;color:${sc}">${designScore}<span style="font-size:14px">/10</span></div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:4px">AI Design Score</div>
+    </div>`;
   }
 
-  // Top failing items (up to 3)
+  // Site thumbnail via thum.io
+  let thumbnailHtml = '';
+  if (url) {
+    const thumbSrc = `https://image.thum.io/get/width/480/crop/280/${url.startsWith('http') ? url : 'https://' + url}`;
+    thumbnailHtml = `<div style="text-align:center;margin:12px 0 8px">
+      <img src="${thumbSrc}" alt="${businessName || url}" width="480" style="max-width:100%;border-radius:8px;border:1px solid #334155" />
+    </div>`;
+  }
+
+  // Top failing items from audit (up to 3)
   let failuresHtml = '';
   if (auditData?.failing && auditData.failing.length > 0) {
     const topFails = auditData.failing.slice(0, 3);
@@ -646,9 +663,24 @@ function buildNotificationEmail({ email, businessName, url, source, auditScore, 
     </div>`;
   }
 
+  // AI analysis issues for upgrade-tool leads (when no audit data)
+  let aiIssuesHtml = '';
+  if (!auditData && assessment.whatsFailing && assessment.whatsFailing.length > 0) {
+    const topIssues = assessment.whatsFailing.slice(0, 3);
+    const issueRows = topIssues.map(issue =>
+      `<tr><td style="padding:6px 0;color:#f87171;font-size:13px">✗ ${issue}</td></tr>`
+    ).join('');
+    aiIssuesHtml = `
+    <div style="margin-top:20px;background:#0f172a;border-radius:8px;padding:16px 20px">
+      <div style="font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">AI Analysis Findings</div>
+      <table width="100%" cellpadding="0" cellspacing="0">${issueRows}</table>
+      ${assessment.whatsFailing.length > 3 ? `<div style="color:#64748b;font-size:11px;margin-top:4px">+ ${assessment.whatsFailing.length - 3} more issues</div>` : ''}
+    </div>`;
+  }
+
   // Action buttons: Reply to lead + Fix Everything link
-  const replySubject = encodeURIComponent(`Re: Your website audit${businessName ? ` — ${businessName}` : ''}`);
-  const replyBody = encodeURIComponent(`Hi,\n\nI saw you ran an audit on ${url || 'your website'}${auditScore ? ` and scored ${auditScore}/100` : ''}. I'd love to help you improve that.\n\n`);
+  const replySubject = encodeURIComponent(`Re: Your website${businessName ? ` — ${businessName}` : ''}`);
+  const replyBody = encodeURIComponent(`Hi,\n\nI saw you ran ${source === 'audit' ? 'an audit' : 'an analysis'} on ${url || 'your website'}${auditScore ? ` and scored ${auditScore}/100` : designScore ? ` (design score: ${designScore}/10)` : ''}. I'd love to help you improve that.\n\n`);
   const fixUrl = url ? `${BASE_URL}?url=${encodeURIComponent(url)}` : '';
 
   let actionButtons = `<div style="text-align:center;margin-top:24px">
@@ -672,6 +704,7 @@ function buildNotificationEmail({ email, businessName, url, source, auditScore, 
   </td></tr>
   <tr><td style="padding:28px 32px">
     ${scoreBadge}
+    ${thumbnailHtml}
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px">
       <tr><td style="padding:10px 0;border-bottom:1px solid #334155">
         <span style="color:#94a3b8;font-size:12px;text-transform:uppercase">Email</span><br>
@@ -695,6 +728,7 @@ function buildNotificationEmail({ email, businessName, url, source, auditScore, 
       </td></tr>` : ''}
     </table>
     ${failuresHtml}
+    ${aiIssuesHtml}
     ${actionButtons}
   </td></tr>
   <tr><td style="padding:16px 32px;background:#0f172a;text-align:center;border-top:1px solid #334155">
@@ -844,6 +878,139 @@ function buildAuditEmail(data, auditUrl) {
         <p style="font-size:11px;color:#cbd5e1;margin:8px 0 0;">You received this because you requested an audit at ${BASE_URL}</p>
       </div>
     </div>`;
+}
+
+/**
+ * Build branded prospect email for upgrade-tool leads (teaser-gate).
+ */
+function buildProspectEmail({ businessName, siteUrl, job, previewUrl, jobId }) {
+  const analysis = job?.analysis || {};
+  const assessment = analysis.currentAssessment || {};
+  const designScore = assessment.designScore || null;
+  const whatsFailing = assessment.whatsFailing || [];
+  const whatWorks = assessment.whatWorks || [];
+
+  // thum.io thumbnail of their current site
+  const thumbUrl = siteUrl ? `https://image.thum.io/get/width/560/crop/320/${siteUrl.startsWith('http') ? siteUrl : 'https://' + siteUrl}` : '';
+
+  // Design score color
+  let scoreColor = '#EF4444';
+  if (designScore >= 8) scoreColor = '#10B981';
+  else if (designScore >= 6) scoreColor = '#F59E0B';
+  else if (designScore >= 4) scoreColor = '#F97316';
+
+  // Build issues list (up to 3)
+  let issuesHtml = '';
+  if (whatsFailing.length > 0) {
+    const topIssues = whatsFailing.slice(0, 3);
+    issuesHtml = topIssues.map(issue =>
+      `<tr><td style="padding:6px 0;font-size:14px;color:#334155;">
+        <span style="color:#EF4444;font-weight:700;margin-right:6px;">✗</span> ${issue}
+      </td></tr>`
+    ).join('');
+    issuesHtml = `
+      <div style="margin:20px 0 0;">
+        <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">What our AI found</div>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#FEF2F2;border-radius:8px;padding:12px 16px;">
+          ${issuesHtml}
+          ${whatsFailing.length > 3 ? `<tr><td style="padding:4px 0;color:#94a3b8;font-size:12px;">+ ${whatsFailing.length - 3} more issues identified</td></tr>` : ''}
+        </table>
+      </div>`;
+  }
+
+  // Build strengths (up to 2)
+  let strengthsHtml = '';
+  if (whatWorks.length > 0) {
+    const topStrengths = whatWorks.slice(0, 2);
+    strengthsHtml = topStrengths.map(s =>
+      `<tr><td style="padding:4px 0;font-size:13px;color:#334155;">
+        <span style="color:#10B981;font-weight:700;margin-right:6px;">✓</span> ${s}
+      </td></tr>`
+    ).join('');
+    strengthsHtml = `
+      <div style="margin:12px 0 0;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#F0FDF4;border-radius:8px;padding:10px 16px;">
+          ${strengthsHtml}
+        </table>
+      </div>`;
+  }
+
+  // Domain display
+  let domain = siteUrl || '';
+  try { domain = new URL(siteUrl.startsWith('http') ? siteUrl : `https://${siteUrl}`).hostname; } catch (e) { /* keep raw */ }
+
+  // Preview CTA
+  const previewCta = previewUrl
+    ? `<a href="${previewUrl}" style="display:inline-block;background:#3B82F6;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;">View Your AI Upgrade Preview →</a>`
+    : `<a href="${BASE_URL}?url=${encodeURIComponent(siteUrl || '')}" style="display:inline-block;background:#3B82F6;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;">See Your Upgrade →</a>`;
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;padding:24px 16px;">
+<tr><td align="center">
+<table width="580" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+
+  <!-- Header -->
+  <tr><td style="background:linear-gradient(135deg,#0f172a,#1e293b);padding:28px 32px;text-align:center;">
+    <div style="font-size:13px;color:rgba(255,255,255,0.6);letter-spacing:0.05em;margin-bottom:6px;">PAUL TRAN STUDIO</div>
+    <div style="font-size:22px;font-weight:700;color:#fff;">Your Website Analysis</div>
+    ${businessName ? `<div style="font-size:15px;color:#94a3b8;margin-top:4px;">${businessName}</div>` : ''}
+  </td></tr>
+
+  ${thumbUrl ? `
+  <!-- Site Thumbnail -->
+  <tr><td style="padding:24px 32px 0;">
+    <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+      <img src="${thumbUrl}" alt="${domain}" width="100%" style="display:block;max-width:516px;" />
+    </div>
+    <div style="text-align:center;margin-top:6px;">
+      <span style="font-size:12px;color:#94a3b8;">${domain}</span>
+    </div>
+  </td></tr>` : ''}
+
+  ${designScore ? `
+  <!-- Design Score -->
+  <tr><td style="padding:20px 32px 0;text-align:center;">
+    <div style="display:inline-block;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px 32px;">
+      <div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Design Score</div>
+      <div style="font-size:36px;font-weight:800;color:${scoreColor};">${designScore}<span style="font-size:18px;color:#94a3b8;">/10</span></div>
+    </div>
+  </td></tr>` : ''}
+
+  <!-- Analysis Results -->
+  <tr><td style="padding:20px 32px;">
+    ${issuesHtml}
+    ${strengthsHtml}
+  </td></tr>
+
+  <!-- Primary CTA -->
+  <tr><td style="padding:8px 32px 28px;text-align:center;">
+    ${previewCta}
+    <p style="font-size:13px;color:#94a3b8;margin:12px 0 0;">See exactly how your site would look after an AI-powered upgrade</p>
+  </td></tr>
+
+  <!-- Divider -->
+  <tr><td style="padding:0 32px;"><hr style="border:none;border-top:1px solid #e2e8f0;margin:0;"></td></tr>
+
+  <!-- Soft sell -->
+  <tr><td style="padding:24px 32px;">
+    <h3 style="font-size:16px;color:#0f172a;margin:0 0 8px;">Want to make it real?</h3>
+    <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 16px;">
+      Paul will personally review your AI upgrade, refine the design, and deliver a production-ready site. Starting at $500, delivered in 24 hours.
+    </p>
+    <p style="font-size:14px;color:#475569;margin:0;">
+      Just reply to this email to get started — or <a href="${BASE_URL}" style="color:#3B82F6;text-decoration:none;font-weight:500;">visit the upgrade tool</a>.
+    </p>
+  </td></tr>
+
+  <!-- Footer -->
+  <tr><td style="background:#f8fafc;padding:20px 32px;border-top:1px solid #e2e8f0;text-align:center;">
+    <p style="font-size:12px;color:#94a3b8;margin:0;">Paul Tran Studio · <a href="https://paultranstudio.com" style="color:#3B82F6;text-decoration:none;">paultranstudio.com</a></p>
+    <p style="font-size:11px;color:#cbd5e1;margin:6px 0 0;">You received this because you entered your email at our upgrade tool.</p>
+  </td></tr>
+
+</table>
+</td></tr></table></body></html>`;
 }
 
 /* ============================================
