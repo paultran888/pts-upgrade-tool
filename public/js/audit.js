@@ -270,9 +270,80 @@ function showResults(data) {
   // ── Priority Fix Card ──
   renderPriorityFix(data.findings, data.score);
 
+  // ── Personalized CTA based on weakest category ──
+  personalizeCta(categories);
+
   // Set upgrade CTA URL
   const upgradeCta = document.getElementById('upgrade-cta');
   upgradeCta.href = `/?url=${encodeURIComponent(currentAuditUrl)}`;
+}
+
+/* ── Personalized CTA ── */
+function personalizeCta(categories) {
+  // Find the worst-scoring category by percentage
+  let worstCat = null;
+  let worstPercent = 100;
+
+  for (const [cat, items] of Object.entries(categories)) {
+    const catPoints = items.reduce((sum, f) => sum + f.points, 0);
+    const catMax = items.reduce((sum, f) => sum + f.maxPoints, 0);
+    const pct = Math.round((catPoints / catMax) * 100);
+    if (pct < worstPercent) {
+      worstPercent = pct;
+      worstCat = cat;
+    }
+  }
+
+  if (!worstCat || worstPercent >= 80) return; // All categories strong — keep generic CTA
+
+  // Get the actual points for the worst category
+  const worstItems = categories[worstCat];
+  const worstPoints = worstItems.reduce((sum, f) => sum + f.points, 0);
+  const worstMax = worstItems.reduce((sum, f) => sum + f.maxPoints, 0);
+
+  // Find the speed metric if Performance is weakest
+  const speedFinding = worstCat === 'Performance'
+    ? worstItems.find(f => f.metric && f.metric.includes('s'))
+    : null;
+
+  // Category-specific CTA copy
+  const ctaCopy = {
+    'Performance': {
+      headline: speedFinding
+        ? `Your site loads in ${speedFinding.metric} — visitors won't wait`
+        : `Your speed score is ${worstPoints}/${worstMax} — that's costing you visitors`,
+      desc: 'Our AI upgrades are built lean and fast from the ground up. Clean code, optimized images, modern performance standards.'
+    },
+    'Mobile': {
+      headline: `Your mobile score is ${worstPoints}/${worstMax} — and most of your visitors are on phones`,
+      desc: 'Our AI builds fully responsive sites that look and work perfectly on every screen size, from phones to desktops.'
+    },
+    'SEO': {
+      headline: `Your SEO score is ${worstPoints}/${worstMax} — Google can't find what isn't optimized`,
+      desc: 'Our AI upgrades include proper meta tags, heading structure, Open Graph data, and semantic HTML that search engines love.'
+    },
+    'Accessibility': {
+      headline: `Your accessibility score is ${worstPoints}/${worstMax} — you're excluding visitors`,
+      desc: 'Our AI builds with proper alt text, semantic markup, and ARIA labels so every visitor can use your site.'
+    },
+    'Security': {
+      headline: `Your site isn't secure — browsers are warning visitors away`,
+      desc: 'Our AI upgrades are deployed with HTTPS by default. No "Not Secure" warnings, no lost trust.'
+    },
+    'Conversion': {
+      headline: `Your conversion score is ${worstPoints}/${worstMax} — visitors come but don't take action`,
+      desc: 'Our AI builds with clear calls-to-action, visible contact info, and clickable phone and email links.'
+    }
+  };
+
+  const copy = ctaCopy[worstCat];
+  if (!copy) return;
+
+  // Update the CTA section
+  const ctaHeadline = document.querySelector('.cta-section h2');
+  const ctaDesc = document.querySelector('.cta-section > p');
+  if (ctaHeadline) ctaHeadline.textContent = copy.headline;
+  if (ctaDesc) ctaDesc.textContent = copy.desc;
 }
 
 /* ── Priority Fix Card Logic ── */
