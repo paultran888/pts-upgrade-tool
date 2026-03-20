@@ -1,0 +1,26 @@
+# Paul Tran Studio — Website Upgrade Tool
+
+> Paul Tran Studio is a San Francisco-based web design agency that uses AI to analyze and upgrade small business websites, delivering professional redesigns starting at $500.
+
+## About
+Paul Tran Studio helps small businesses modernize their websites using AI-powered analysis and design. The upgrade tool scans any website, identifies issues across performance, SEO, mobile responsiveness, accessibility, and conversion, then generates a complete AI-powered redesign preview in seconds.
+
+The process is simple: paste your URL, get a free AI analysis and upgrade preview, then purchase the full production-ready site starting at $500 with 24-hour delivery. Paul personally reviews and polishes every upgrade before delivery.
+
+The studio also offers a free website audit tool that scores sites across 12 automated checks in 6 categories, using the same standards as Google Lighthouse and modern SEO tools.
+
+## Services
+- Free Website Audit: Instant 12-check audit scoring speed, SEO, mobile, accessibility, security, and conversion (0-100 score)
+- AI Website Analysis: Deep AI-powered analysis of design quality, content, and conversion optimization
+- AI Upgrade Preview: Free before/after preview showing how your site would look after a professional redesign
+- Full Website Upgrade: Production-ready redesigned website, personally reviewed and delivered in 24 hours, starting at $500
+
+## Contact
+- Website: https://paultranstudio.com
+- Email: paul@paultranstudio.com
+- Location: San Francisco, CA
+
+## Links
+- Upgrade Tool: https://pts-upgrade-tool-production.up.railway.app/
+- Free Audit: https://pts-upgrade-tool-production.up.railway.app/audit.html
+- Main Site: https://paultranstudio.com
