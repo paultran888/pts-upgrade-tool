@@ -272,9 +272,34 @@
               <span class="stat-label">Max Score</span>
             </div>
             <div class="audit-method-stat">
-              <span class="stat-num">&lt;10s</span>
-              <span class="stat-label">Scan Time</span>
+              <span class="stat-num">+30</span>
+              <span class="stat-label">GEO Bonus</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GEO Readiness Score — shown when GEO data exists -->
+      <div class="geo-readiness hidden" id="geo-readiness">
+        <div class="geo-readiness-inner">
+          <div class="geo-header">
+            <div class="geo-header-left">
+              <div class="geo-badge">&#129302; AI Readiness</div>
+              <h3 class="geo-title">GEO Readiness Score</h3>
+              <p class="geo-subtitle">How visible is your site to AI search engines like ChatGPT, Perplexity, and Google AI Overviews?</p>
+            </div>
+            <div class="geo-score-ring-wrap">
+              <svg class="geo-score-ring" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="#1E293B" stroke-width="7"/>
+                <circle id="geo-score-arc" cx="40" cy="40" r="34" fill="none" stroke-width="7" stroke-linecap="round"
+                  stroke-dasharray="0 214" transform="rotate(-90 40 40)"/>
+              </svg>
+              <div class="geo-score-number" id="geo-score-number">0</div>
+            </div>
+          </div>
+          <div class="geo-points" id="geo-points"></div>
+          <div class="geo-findings" id="geo-findings-list">
+            <!-- Populated by JS -->
           </div>
         </div>
       </div>

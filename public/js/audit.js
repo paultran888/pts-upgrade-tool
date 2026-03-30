@@ -267,6 +267,9 @@ function showResults(data) {
     grid.appendChild(card);
   }
 
+  // ── GEO Readiness Score ──
+  renderGeoReadiness(data);
+
   // ── Priority Fix Card ──
   renderPriorityFix(data.findings, data.score);
 
@@ -276,6 +279,124 @@ function showResults(data) {
   // Set upgrade CTA URL
   const upgradeCta = document.getElementById('upgrade-cta');
   upgradeCta.href = `/?url=${encodeURIComponent(currentAuditUrl)}`;
+}
+
+/* ── GEO Readiness Score ── */
+function renderGeoReadiness(data) {
+  const container = document.getElementById('geo-readiness');
+
+  // Only show if server returned GEO data
+  if (!data.geoFindings || data.geoFindings.length === 0) {
+    container.classList.add('hidden');
+    return;
+  }
+
+  container.classList.remove('hidden');
+
+  const geoScore = data.geoScore || 0;
+  const geoTotal = data.geoTotalPoints || 0;
+  const geoMax = data.geoMaxPoints || 30;
+
+  // Score ring animation
+  const arc = document.getElementById('geo-score-arc');
+  const circumference = 2 * Math.PI * 34; // r=34
+  const scoreNum = document.getElementById('geo-score-number');
+
+  // Color based on score
+  let color = '#EF4444'; // red
+  if (geoScore >= 80) color = '#10B981';
+  else if (geoScore >= 60) color = '#F59E0B';
+  else if (geoScore >= 40) color = '#F97316';
+
+  arc.style.stroke = color;
+  scoreNum.style.color = color;
+
+  // Animate the arc
+  const target = (geoScore / 100) * circumference;
+  const duration = 1000;
+  const startTime = performance.now();
+
+  function animateGeo(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3);
+
+    const currentArc = eased * target;
+    arc.setAttribute('stroke-dasharray', `${currentArc} ${circumference}`);
+    scoreNum.textContent = Math.round(eased * geoScore);
+
+    if (progress < 1) requestAnimationFrame(animateGeo);
+  }
+  requestAnimationFrame(animateGeo);
+
+  // Points summary
+  const pointsEl = document.getElementById('geo-points');
+  pointsEl.textContent = `${geoTotal}/${geoMax} bonus points earned`;
+
+  // Render individual findings
+  const list = document.getElementById('geo-findings-list');
+  list.innerHTML = '';
+
+  // Difficulty & impact labels (reuse from main)
+  const difficultyLabels = {
+    easy: { text: 'Easy Fix', cls: 'badge--easy' },
+    moderate: { text: 'Moderate', cls: 'badge--moderate' },
+    developer: { text: 'Needs a Developer', cls: 'badge--developer' }
+  };
+  const impactLabels = {
+    high: { text: 'High Impact', cls: 'badge--high' },
+    medium: { text: 'Medium Impact', cls: 'badge--medium' },
+    low: { text: 'Low Impact', cls: 'badge--low' }
+  };
+
+  // GEO finding icons
+  const geoIcons = {
+    'AI crawler access optimal': '&#129302;',
+    'AI crawler access needs work': '&#129302;',
+    'llms.txt complete': '&#128196;',
+    'llms.txt missing or incomplete': '&#128196;',
+    'FAQ Schema depth strong': '&#10067;',
+    'FAQ Schema depth needs work': '&#10067;',
+    'FAQ Schema not found': '&#10067;',
+    'Schema cross-referencing active': '&#128279;',
+    'Schema cross-referencing missing': '&#128279;',
+    'No JSON-LD schema found': '&#128279;',
+    'Entity grounding present': '&#127760;',
+    'Entity grounding missing': '&#127760;',
+    'Speakable schema present': '&#128483;',
+    'Speakable schema missing': '&#128483;'
+  };
+
+  data.geoFindings.forEach(f => {
+    const icon = geoIcons[f.label] || '&#9889;';
+    const diffBadge = !f.pass && f.difficulty && difficultyLabels[f.difficulty]
+      ? `<span class="finding-badge ${difficultyLabels[f.difficulty].cls}">${difficultyLabels[f.difficulty].text}</span>`
+      : '';
+    const impactBadge = !f.pass && f.impact && impactLabels[f.impact]
+      ? `<span class="finding-badge ${impactLabels[f.impact].cls}">${impactLabels[f.impact].text}</span>`
+      : '';
+    const badges = (diffBadge || impactBadge)
+      ? `<div class="finding-badges">${impactBadge}${diffBadge}</div>`
+      : '';
+    const fixTip = !f.pass && f.fix
+      ? `<div class="finding-fix"><span class="finding-fix-icon">&#128736;</span><div class="finding-fix-text"><strong>How to fix:</strong> ${f.fix.replace(/\n/g, '<br>')}</div></div>`
+      : '';
+
+    const item = document.createElement('div');
+    item.className = `geo-finding-item ${f.pass ? 'pass' : 'fail'}`;
+    item.innerHTML = `
+      <span class="geo-finding-icon">${icon}</span>
+      <span class="finding-status">${f.pass ? '&#10003;' : '&#10007;'}</span>
+      <div class="finding-content">
+        <strong>${f.label}</strong>
+        <span class="geo-finding-pts">${f.points}/${f.maxPoints}</span>
+        ${badges}
+        <p>${f.detail}</p>
+        ${fixTip}
+      </div>
+    `;
+    list.appendChild(item);
+  });
 }
 
 /* ── Personalized CTA ── */
